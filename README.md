@@ -349,15 +349,77 @@ flac-meta-injector fingerprint ./music/"01 - Daft Punk - One More Time.mp3"
 
 ---
 
+## Native Windows Glassmorphism Desktop Application (Tauri v2 + React 19)
+
+`flac-meta-injector` features a native, frameless **Windows 11 Glassmorphism Desktop Application** built with **Tauri v2 (Rust + WebView2)** and **React 19 + TypeScript + Tailwind CSS**.
+
+```
++-----------------------------------------------------------------------------------+
+|                  TAURI v2 NATIVE WINDOWS SHELL (Frameless + Acrylic)              |
+|  +-----------------------------------------------------------------------------+  |
+|  | Custom Glass Titlebar (Minimize / Maximize / Close + Binary Health Badges)  |  |
+|  +----------------------+------------------------------------------------------+  |
+|  | Glass Sidebar Nav    | Main Glass Workspace (React 19 + TypeScript)         |  |
+|  | - Library Scanner    | - OS Native Drag-and-Drop (Real Windows File Paths)  |  |
+|  | - Waterfall Injector | - Live Provider Waterfall Stepper & Confidence Gauge |  |
+|  | - Track Inspector    | - Before/After Vorbis & ID3v2.4 Diff Table           |  |
+|  | - WAV -> FLAC Studio | - 3000x3000px Master Artwork Preview & Ambient Glow  |  |
+|  | - API & Env Settings | - Real-Time Batch Progress Bar & Verification Log    |  |
+|  +----------------------+------------------------------------------------------+  |
++-----------------------------------------+-----------------------------------------+
+                                          | Tauri IPC Commands & Event Stream
+                                          v
++-----------------------------------------------------------------------------------+
+|                     RUST CORE (src-tauri / window-vibrancy)                       |
+| - Applies Windows 11 DWM Acrylic / Mica blur directly to HWND                     |
+| - Spawns & manages Python JSON-RPC / CLI Bridge (`python -m flac_injector.bridge`)|
+| - Streams line-delimited JSON progress events to the frontend in real time        |
++-----------------------------------------+-----------------------------------------+
+                                          | stdin / stdout JSON-Lines Protocol
+                                          v
++-----------------------------------------------------------------------------------+
+|               EXISTING PYTHON ENGINE (`src/flac_injector/`)                       |
+| - Scanner (FLAC/MP3/WAV) | Converter (FFmpeg) | Fingerprint (`fpcalc`/AcoustID)   |
+| - Waterfall Providers (MusicBrainz, iTunes 3000px, Deezer BPM, Spotify)           |
+| - Fuzzy Scorer (RapidFuzz) | Lossless Writer (`mutagen.flac` & `mutagen.mp3`)     |
++-----------------------------------------------------------------------------------+
+```
+
+### Key Desktop Features
+
+- **Genuine OS Acrylic / Mica Vibrancy**: Renders true Windows 11 DWM frosted transparency via `window-vibrancy`.
+- **Dynamic Ambient Cover Art Glow**: Projects a blurred radial glow of the 3000x3000px album artwork behind the frosted glass cards.
+- **Native OS Drag-and-Drop**: Drop files or folders directly from Windows Explorer into the UI.
+- **Live 5-Node Waterfall Stepper**: Real-time visual progress as tracks move through `Chromaprint` -> `MusicBrainz` -> `iTunes 3000px` -> `Deezer BPM` -> `Spotify`.
+- **Track Inspector & 3000px Zoom**: Inspect Vorbis comments, ID3 frames, and zoom master album artwork in an audiophile modal.
+- **WAV -> FLAC Studio**: Convert uncompressed files with compression level sliders (0–12) and auto-tagging.
+- **In-App `.env` Settings**: Manage API keys and rate limits directly from the desktop interface.
+
+### Running & Building the Desktop App
+
+```bash
+# 1. Enter the desktop directory
+cd desktop
+
+# 2. Run the development desktop application
+npm run tauri dev
+
+# 3. Build standalone production Windows binaries (.msi and .exe installer)
+npm run tauri build
+```
+
+---
+
 ## Verification & Testing
 
-The repository includes a comprehensive 34-test suite covering FLAC, MP3, and WAV workflows with synthetic audio fixtures generated via `ffmpeg`:
+The repository includes a comprehensive 40-test suite covering FLAC, MP3, WAV, and Python JSON bridge workflows with synthetic audio fixtures generated via `ffmpeg`:
 
 ```bash
 # Run the complete test suite
 pytest -v
 
 # Run targeted test suites
+pytest tests/test_bridge.py -v      # Tauri NDJSON bridge tests
 pytest tests/test_converter.py -v   # WAV to FLAC conversion tests
 pytest tests/test_mp3.py -v         # MP3 ID3 & APIC injection tests
 pytest tests/test_scanner.py -v     # Multi-format scanner tests
@@ -367,6 +429,12 @@ pytest tests/test_writer.py -v      # Mutagen writer verification tests
 
 # Run code quality and linting checks
 ruff check src tests
+
+# Verify Desktop TypeScript frontend & Rust backend
+cd desktop
+npm run build
+cd src-tauri
+cargo check
 ```
 
 ---
@@ -374,3 +442,4 @@ ruff check src tests
 ## License
 
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+

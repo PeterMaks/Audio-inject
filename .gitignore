@@ -8,3 +8,6 @@ __pycache__/
 .ruff_cache/
 .env
 tests/fixtures/*.flac
+desktop/src-tauri/target
+desktop/node_modules
+

@@ -9,10 +9,34 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
 from typing import Any
+
+
+def bootstrap_bundled_binaries() -> None:
+    """When frozen via PyInstaller, point PATH and FPCALC_PATH to sibling sidecars."""
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        # Prepend the directory containing flac-bridge.exe, ffmpeg.exe, and fpcalc.exe to PATH
+        current_path = os.environ.get("PATH", "")
+        os.environ["PATH"] = f"{exe_dir}{os.pathsep}{current_path}"
+
+        ext = ".exe" if sys.platform.startswith("win") else ""
+        bundled_fpcalc = exe_dir / f"fpcalc{ext}"
+        bundled_ffmpeg = exe_dir / f"ffmpeg{ext}"
+
+        if bundled_fpcalc.exists():
+            os.environ["FPCALC_PATH"] = str(bundled_fpcalc)
+            os.environ["FPCALC"] = str(bundled_fpcalc)  # Used by pyacoustid
+        if bundled_ffmpeg.exists():
+            os.environ["FFMPEG_PATH"] = str(bundled_ffmpeg)
+
+
+bootstrap_bundled_binaries()
+
 
 from mutagen.flac import FLAC
 from mutagen.mp3 import MP3

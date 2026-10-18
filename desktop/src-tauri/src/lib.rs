@@ -47,23 +47,63 @@ fn find_python_executable(root: &Path) -> PathBuf {
     PathBuf::from("python")
 }
 
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+fn resolve_bridge_command(action: &str) -> Result<Command, String> {
+    let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let exe_dir = current_exe
+        .parent()
+        .ok_or_else(|| "Failed to resolve executable directory".to_string())?;
+
+    let sidecar_name = if cfg!(target_os = "windows") {
+        "flac-bridge.exe"
+    } else {
+        "flac-bridge"
+    };
+
+    // 1. Check installed sidecar next to the Tauri executable
+    let installed_sidecar = exe_dir.join(sidecar_name);
+    if installed_sidecar.exists() {
+        let mut cmd = Command::new(&installed_sidecar);
+        cmd.arg(action).arg("-");
+        // Ensure sibling ffmpeg.exe and fpcalc.exe are discoverable
+        if let Ok(path_env) = std::env::var("PATH") {
+            let sep = if cfg!(target_os = "windows") { ";" } else { ":" };
+            cmd.env("PATH", format!("{}{}{}", exe_dir.display(), sep, path_env));
+        }
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        return Ok(cmd);
+    }
+
+    // 2. Fallback for local `npm run tauri dev`: use repository Python venv
+    let root = find_workspace_root();
+    let python = find_python_executable(&root);
+
+    let mut cmd = Command::new(python);
+    cmd.current_dir(&root);
+    cmd.env("PYTHONPATH", root.join("src"));
+    cmd.arg("-m")
+        .arg("flac_injector.bridge")
+        .arg(action)
+        .arg("-");
+
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    Ok(cmd)
+}
+
 /// Execute a bridge command asynchronously and optionally stream progress events
 async fn execute_bridge_command(
     app: Option<&AppHandle>,
     action: &str,
     params: Value,
 ) -> Result<Value, String> {
-    let root = find_workspace_root();
-    let python = find_python_executable(&root);
-
     let params_str = serde_json::to_string(&params).map_err(|e| e.to_string())?;
 
-    let mut cmd = Command::new(python);
-    cmd.current_dir(&root);
-    cmd.arg("-m")
-        .arg("flac_injector.bridge")
-        .arg(action)
-        .arg("-");
+    let mut cmd = resolve_bridge_command(action)?;
 
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());

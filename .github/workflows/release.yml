@@ -61,16 +61,30 @@ jobs:
         run: pytest -v
 
   # ---------------------------------------------------------------------------
-  # JOB 2: Compile Tauri v2 Windows Installers (.msi & .exe)
+  # JOB 2: Compile Standalone Tauri v2 Windows Installers (.msi & .exe + Sidecars)
   # ---------------------------------------------------------------------------
   build-windows-desktop:
-    name: Build Windows .msi & .exe (Tauri v2)
+    name: Build Standalone Windows .msi & .exe (Tauri v2 + Sidecars)
     needs: verify-python-engine
     runs-on: windows-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Install FFmpeg & Chromaprint Binaries (Windows)
+        run: choco install ffmpeg chromaprint -y --no-progress
+
+      - name: Set up Python 3.12 (for PyInstaller Sidecar Build)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Python Dependencies & PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" pyinstaller
 
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
@@ -81,6 +95,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
+
+      - name: Build Standalone Sidecars (flac-bridge.exe, ffmpeg.exe, fpcalc.exe)
+        run: python scripts/build_sidecars.py
 
       - name: Cache Rust Cargo Target
         uses: Swatinem/rust-cache@v2
@@ -96,16 +113,16 @@ jobs:
         run: npm run build
 
       # On branch pushes and PRs: compile .msi and .exe installers and upload as CI artifacts
-      - name: Compile Tauri v2 Windows Installers (.msi and .exe)
+      - name: Compile Self-Contained Windows Installers (.msi and .exe)
         if: "!startsWith(github.ref, 'refs/tags/v')"
         working-directory: ./desktop
         run: npm run tauri build -- --bundles msi,nsis
 
-      - name: Upload Windows .msi & .exe Artifacts
+      - name: Upload Standalone Windows .msi & .exe Artifacts
         if: "!startsWith(github.ref, 'refs/tags/v')"
         uses: actions/upload-artifact@v4
         with:
-          name: FLAC-Meta-Injector-Windows-Installers
+          name: FLAC-Meta-Injector-Standalone-Windows-Installers
           path: |
             desktop/src-tauri/target/release/bundle/msi/*.msi
             desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
@@ -123,10 +140,8 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "FLAC Meta Injector ${{ github.ref_name }}"
           releaseBody: |
-            ## FLAC Meta Injector ${{ github.ref_name }} — Windows Studio Edition
-            ### Downloads
-            - **Windows Installer (`.msi`)**: Standard Windows Installer package.
-            - **Windows Setup (`.exe`)**: NSIS one-click setup executable.
+            ## FLAC Meta Injector ${{ github.ref_name }} — Standalone Windows Studio Edition
+            Zero-dependency installer with embedded Python engine, FFmpeg, and Chromaprint (`fpcalc`).
           releaseDraft: false
           prerelease: false
           args: --bundles msi,nsis

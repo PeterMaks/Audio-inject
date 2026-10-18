@@ -9,5 +9,7 @@ __pycache__/
 .env
 tests/fixtures/*.flac
 desktop/src-tauri/target
+desktop/src-tauri/binaries/
 desktop/node_modules
-
+build/
+dist/

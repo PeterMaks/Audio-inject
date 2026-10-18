@@ -111,9 +111,70 @@ class TrackMetadata(BaseModel):
 
         return comments
 
+    def to_id3_dict(self) -> dict[str, Any]:
+        """Serialize canonical metadata into ID3 frame representations."""
+        frames: dict[str, Any] = {}
+
+        frames["TIT2"] = self.title
+        frames["TPE1"] = self.artist
+        frames["TALB"] = self.album
+        frames["TPE2"] = self.album_artist or self.artist
+
+        if self.track_number:
+            frames["TRCK"] = (
+                f"{self.track_number}/{self.track_total}"
+                if self.track_total
+                else str(self.track_number)
+            )
+        if self.disc_number:
+            frames["TPOS"] = (
+                f"{self.disc_number}/{self.disc_total}"
+                if self.disc_total
+                else str(self.disc_number)
+            )
+
+        if self.date:
+            frames["TDRC"] = str(self.date)
+        elif self.year:
+            frames["TDRC"] = str(self.year)
+
+        if self.genre:
+            frames["TCON"] = self.genre
+
+        if self.isrc:
+            frames["TSRC"] = str(self.isrc)
+        if self.copyright:
+            frames["TCOP"] = str(self.copyright)
+        if self.composer:
+            frames["TCOM"] = str(self.composer)
+        if self.label:
+            frames["TPUB"] = str(self.label)
+
+        if self.bpm is not None:
+            bpm_str = f"{self.bpm:.1f}" if self.bpm % 1 != 0 else f"{int(self.bpm)}"
+            frames["TBPM"] = bpm_str
+
+        # User Defined Text frames (TXXX)
+        txxx: dict[str, str] = {}
+        if self.musicbrainz_trackid:
+            txxx["MusicBrainz Track Id"] = self.musicbrainz_trackid
+        if self.musicbrainz_albumid:
+            txxx["MusicBrainz Album Id"] = self.musicbrainz_albumid
+        if self.musicbrainz_artistid:
+            txxx["MusicBrainz Artist Id"] = self.musicbrainz_artistid
+        if self.acoustid_id:
+            txxx["Acoustid Id"] = self.acoustid_id
+        if self.barcode:
+            txxx["BARCODE"] = self.barcode
+        if self.explicit is not None:
+            txxx["ITUNESADVISORY"] = "1" if self.explicit else "2"
+
+        frames["TXXX"] = txxx
+        return frames
+
 
 class ScanResult(BaseModel):
-    """Result of inspecting a local FLAC file for metadata completeness."""
+    """Result of inspecting a local audio file for metadata completeness."""
 
     path: Path
     duration_seconds: float
@@ -125,6 +186,7 @@ class ScanResult(BaseModel):
     has_cover_art: bool
     cover_art_info: dict[str, Any] | None = None
     is_incomplete: bool
+    audio_format: str = "flac"  # "flac", "mp3", "wav"
 
 
 class FingerprintResult(BaseModel):
@@ -132,3 +194,4 @@ class FingerprintResult(BaseModel):
 
     fingerprint: str
     duration: float
+

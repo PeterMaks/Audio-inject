@@ -4,21 +4,22 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-A production-grade CLI and Python library that losslessly scans local `.flac` audio tracks with missing, stripped, or incomplete metadata, resolves canonical track identity across major music streaming services and databases, and injects standardized **Vorbis Comments** and **ultra high-resolution cover art (up to 3000x3000px)**.
+A production-grade CLI and Python library that losslessly scans local audio files (**FLAC** and **MP3**), converts uncompressed **WAV** tracks into bit-perfect FLAC, resolves canonical track identity across major music streaming services and databases, and injects standardized **Vorbis Comments / ID3v2.4 tags** and **ultra high-resolution cover art (up to 3000x3000px)**.
 
 ---
 
 ## Key Features
 
-- **Lossless Metadata Surgery**: Direct header and block manipulation via `mutagen.flac.FLAC`—no re-encoding, preserving 100% bit-perfect audio stream integrity.
-- **Acoustic Audio Fingerprinting**: Uses Chromaprint (`fpcalc`) and AcoustID to recognize tracks by actual audio waveform, completely bypassing stripped or wrong filenames.
+- **Multi-Format Lossless Metadata Surgery**: Direct header and tag manipulation via `mutagen.flac.FLAC` (Vorbis Comments & Picture blocks) and `mutagen.mp3.MP3` (ID3v2.4 & APIC frames)—no audio re-encoding, preserving 100% bit-perfect audio stream integrity.
+- **WAV to Lossless FLAC Conversion**: Built-in audio conversion engine powered by FFmpeg converting uncompressed `.wav`, `.wave`, `.aiff` files to FLAC with custom compression levels and automatic post-conversion tagging.
+- **Acoustic Audio Fingerprinting**: Uses Chromaprint (`fpcalc`) and AcoustID to recognize tracks by actual audio waveform, completely bypassing stripped or wrong filenames across FLAC, MP3, and WAV.
 - **Intelligent Provider Waterfall Pipeline**:
   - **AcoustID & MusicBrainz**: Authoritative MBIDs (`MUSICBRAINZ_TRACKID`, `MUSICBRAINZ_ALBUMID`), artist credits, and ISRC codes.
   - **Apple iTunes Search API**: Zero-auth public search dynamically upgraded from 100x100 thumbnails to **3000x3000px** uncompressed master artwork directly from Apple's CDN.
   - **Deezer Public API**: Zero-auth endpoint providing exact track **BPM (tempo)**, explicit advisory ratings, and ISRC validation.
   - **Spotify Web API**: Enriched streaming metadata via Client Credentials flow.
 - **Fuzzy Confidence Scoring**: Uses RapidFuzz token sorting and duration discrepancy penalties ($| \Delta\text{duration} | > 3\text{s}$) to guard against false-positive tag injection.
-- **Rich Interactive CLI**: Built with `typer` and `rich`, featuring visual scan tables, before/after inspection, dry-run simulation, and immediate post-write read-back verification.
+- **Rich Interactive CLI**: Built with `typer` and `rich`, featuring visual scan tables with audio format indicators, before/after inspection, dry-run simulation, and immediate post-write read-back verification.
 
 ---
 
@@ -26,38 +27,42 @@ A production-grade CLI and Python library that losslessly scans local `.flac` au
 
 ```mermaid
 graph TD
-    A[Local FLAC File] --> B[Scanner: Inspect Vorbis Comments & Picture Block]
-    B --> C{Missing Tags or Cover Art?}
-    C -- No --> D[Skip / Report Complete]
-    C -- Yes --> E[Extract Audio Fingerprint & Duration]
-    E --> F[Chromaprint fpcalc Binary]
-    E --> G[Filename / Path Regex Parser Fallback]
+    A[Local Audio File: FLAC, MP3, or WAV] --> B[Scanner: Inspect Vorbis/ID3 Tags & Cover Art]
+    B --> C{File Format?}
+    C -- WAV --> D[Converter: Encode to FLAC via FFmpeg]
+    D --> E[FLAC Track]
+    C -- FLAC / MP3 --> E
+    E --> F{Missing Tags or Cover Art?}
+    F -- No --> G[Skip / Report Complete]
+    F -- Yes --> H[Extract Audio Fingerprint & Duration]
+    H --> I[Chromaprint fpcalc Binary]
+    H --> J[Filename / Path Regex Parser Fallback]
     
-    F --> H[AcoustID & MusicBrainz Provider]
-    H -->|Match Found| I[Resolved MBID & ISRC]
-    H -->|No Match| J[Fallback to Query Search]
+    I --> K[AcoustID & MusicBrainz Provider]
+    K -->|Match Found| L[Resolved MBID & ISRC]
+    K -->|No Match| M[Fallback to Query Search]
     
-    G --> J
-    I --> K[ISRC & Identity Lookup]
-    J --> L[Query Lookup across Providers]
+    J --> M
+    L --> N[ISRC & Identity Lookup]
+    M --> O[Query Lookup across Providers]
     
-    K --> M[Apple iTunes API: 3000x3000px Art & Meta]
-    K --> N[Deezer API: BPM, Explicit, ISRC Meta]
-    K --> O[Spotify API: Canonical Tags & Genres]
+    N --> P[Apple iTunes API: 3000x3000px Art & Meta]
+    N --> Q[Deezer API: BPM, Explicit, ISRC Meta]
+    N --> R[Spotify API: Canonical Tags & Genres]
     
-    L --> M
-    L --> N
-    L --> O
-    
-    M --> P[Waterfall Merger & Fuzzy Confidence Scorer]
-    N --> P
     O --> P
-    H --> P
+    O --> Q
+    O --> R
     
-    P --> Q{Confidence >= Threshold?}
-    Q -- Yes --> R[Mutagen FLAC Writer: Vorbis Comments + Picture Block]
-    Q -- No --> S[Flag for Manual Review / Warning]
-    R --> T[Post-Injection Immediate Readback Verification]
+    P --> S[Waterfall Merger & Fuzzy Confidence Scorer]
+    Q --> S
+    R --> S
+    K --> S
+    
+    S --> T{Confidence >= Threshold?}
+    T -- Yes --> U[Tag Injector: FLAC Vorbis / MP3 ID3v2.4 + APIC Cover]
+    T -- No --> V[Flag for Manual Review / Warning]
+    U --> W[Post-Injection Immediate Readback Verification]
 ```
 
 ---
@@ -65,7 +70,7 @@ graph TD
 ## Prerequisites & System Dependencies
 
 `flac-meta-injector` requires **Python 3.11+** and two external CLI binaries:
-1. **`ffmpeg`** (used for synthetic test audio generation and audio analysis)
+1. **`ffmpeg`** (used for audio conversion and audio analysis)
 2. **`fpcalc`** (Chromaprint acoustic fingerprint generator)
 
 ### Installing System Dependencies
@@ -112,7 +117,7 @@ sudo apt-get install -y ffmpeg libchromaprint-tools
    source .venv/bin/activate
    ```
 
-3. **Install dependencies**:
+3. **Install dependencies in editable mode**:
    ```bash
    pip install -e ".[dev]"
    ```
@@ -150,17 +155,18 @@ The command-line interface is available via `flac-meta-injector` or `python -m f
 Usage: flac-meta-injector [OPTIONS] COMMAND [ARGS]...
 
 Commands:
-  scan         Scan local FLAC tracks and report metadata and cover art completeness.
-  inspect      Inspect detailed Vorbis Comment tags and Picture blocks of a FLAC file.
+  scan         Scan audio files (FLAC, MP3, WAV) and report metadata and cover art completeness.
+  inspect      Inspect detailed tags, properties, and cover art blocks of an audio file.
   fingerprint  Generate Chromaprint fingerprint and parse filename heuristics.
-  inject       Scan and inject standardized Vorbis Comments and cover art into FLAC files.
+  inject       Scan and inject standardized metadata and cover art into FLAC and MP3 files.
+  convert      Convert WAV / uncompressed audio files into FLAC and optionally inject tags.
 ```
 
 ---
 
-### 1. `scan` — Audit Missing Tags & Cover Art
+### 1. `scan` — Audit Missing Tags & Cover Art (FLAC, MP3, WAV)
 
-Scans a single `.flac` file or an entire directory tree and renders a formatted table showing metadata health, missing core fields, and cover art resolution.
+Scans a single audio file or an entire directory tree and renders a formatted table showing format, metadata health, missing core fields, and cover art resolution.
 
 ```bash
 # Scan a folder recursively
@@ -175,168 +181,191 @@ flac-meta-injector scan ./music/ --only-incomplete
 
 **Example Output:**
 ```text
-                          FLAC Metadata Scan Results                           
-┌──────────┬──────────┬──────────┬──────────┬──────────┬───────────┬──────────┐
-│ Track /  │          │          │          │  Cover   │           │ Missing  │
-│ Path     │ Title    │ Artist   │ Album    │   Art    │  Status   │ Fields   │
-├──────────┼──────────┼──────────┼──────────┼──────────┼───────────┼──────────┤
-│ Daft     │ -        │ -        │ -        │ MISSING  │ INCOMPLE… │ ALBUM,   │
-│ Punk -   │          │          │          │          │           │ ARTIST,  │
-│ One More │          │          │          │          │           │ DATE,    │
-│ Time.fl… │          │          │          │          │           │ GENRE,   │
-│          │          │          │          │          │           │ TITLE,   │
-│          │          │          │          │          │           │ TRACKNU… │
-└──────────┴──────────┴──────────┴──────────┴──────────┴───────────┴──────────┘
-┌─────────────────── Scan Summary ───────────────────┐
-│ Total Scanned: 1  |  Complete: 0  |  Incomplete: 1 │
-└────────────────────────────────────────────────────┘
-```
-
----
-
-### 2. `inspect` — Detailed Vorbis Comment & Picture Block Viewer
-
-Performs deep introspection of a FLAC file, displaying audio stream properties (sample rate, bit depth, channels, duration), all existing Vorbis comments, and embedded Picture block technical specifications.
-
-```bash
-flac-meta-injector inspect ./music/track.flac
-```
-
-**Example Output:**
-```text
-┌─────────────────────── FLAC Audio Stream Properties ────────────────────────┐
-│ Path: ./music/Daft Punk - One More Time.flac                                │
-│ Duration: 05:20 (320.12s)                                                   │
-│ Format: 44100 Hz, 2 Ch, 16-bit                                              │
+                          Audio Metadata Scan Results                          
+┌─────────┬────────┬─────────┬─────────┬─────────┬─────────┬─────────┬────────┐
+│ Track / │        │         │         │         │  Cover  │         │ Missi… │
+│ Path    │ Format │ Title   │ Artist  │ Album   │   Art   │ Status  │ Fields │
+├─────────┼────────┼─────────┼─────────┼─────────┼─────────┼─────────┼────────┤
+│ Daft    │  FLAC  │ One     │ Daft    │ Vitamin │   OK    │ COMPLE… │ -      │
+│ Punk -  │        │ More    │ Punk    │ House   │ (3000x… │         │        │
+│ One     │        │ Time    │         │         │         │         │        │
+│ More    │        │         │         │         │         │         │        │
+│ Time.f… │        │         │         │         │         │         │        │
+│ Daft    │  MP3   │ Techno… │ Daft    │ Human   │   OK    │ COMPLE… │ -      │
+│ Punk -  │        │         │ Punk    │ After   │ (1500x… │         │        │
+│ Techno… │        │         │         │ All     │         │         │        │
+│ Kraftw… │  WAV   │ -       │ -       │ -       │ MISSING │ INCOMP… │ ALBUM, │
+│ - The   │        │         │         │         │         │         │ ARTIS… │
+│ Robots… │        │         │         │         │         │         │ DATE,  │
+└─────────┴────────┴─────────┴─────────┴─────────┴─────────┴─────────┴────────┘
+┌─────────────────────────────── Scan Summary ────────────────────────────────┐
+│ Total Scanned: 3 (FLAC: 1  |  MP3: 1  |  WAV: 1)  |  Complete: 2  |         │
+│ Incomplete: 1                                                               │
 └─────────────────────────────────────────────────────────────────────────────┘
-                       Vorbis Comments                        
-┌─────────────────────┬──────────────────────────────────────┐
-│ Tag Key             │ Value(s)                             │
-├─────────────────────┼──────────────────────────────────────┤
-│ ALBUM               │ Discovery                            │
-│ ALBUMARTIST         │ Daft Punk                            │
-│ ARTIST              │ Daft Punk                            │
-│ DATE                │ 2001-03-12                           │
-│ DISCNUMBER          │ 1                                    │
-│ DISCTOTAL           │ 1                                    │
-│ GENRE               │ Electronic // French House           │
-│ ISRC                │ GBDUW0100055                         │
-│ ITUNESADVISORY      │ 2                                    │
-│ MUSICBRAINZ_ALBUMID │ aca0f087-e163-4d52-80fc-a78851dcb0d7 │
-│ MUSICBRAINZ_TRACKID │ fad84787-2d80-487c-9f5e-da616829235b │
-│ TITLE               │ One More Time                        │
-│ TRACKNUMBER         │ 1                                    │
-│ TRACKTOTAL          │ 14                                   │
-│ YEAR                │ 2001                                 │
-└─────────────────────┴──────────────────────────────────────┘
-┌─ Embedded Picture Block ─┐
-│ Type: Cover (front) (3)  │
-│ MIME: image/jpeg         │
-│ Resolution: 3000x3000    │
-│ Bit Depth: 24-bit        │
-│ Size: 1558.1 KB          │
-└──────────────────────────┘
 ```
 
 ---
 
-### 3. `fingerprint` — Acoustic Fingerprint & Heuristic Parser
+### 2. `inspect` — Detailed Tag & Picture Block Viewer
 
-Runs `fpcalc` against an audio file, prints its Chromaprint representation, and parses candidate hints from filenames and directory hierarchies.
+Performs deep introspection of a FLAC, MP3, or WAV file, displaying audio stream properties, all existing Vorbis comments / ID3 frames, and embedded cover art specifications.
 
 ```bash
-flac-meta-injector fingerprint ./music/"01 - Daft Punk - One More Time.flac"
+# Inspect a FLAC file
+flac-meta-injector inspect ./music/track.flac
+
+# Inspect an MP3 file
+flac-meta-injector inspect ./music/track.mp3
+
+# Inspect a WAV file
+flac-meta-injector inspect ./music/recording.wav
 ```
 
-**Example Output:**
+**Example Output (MP3 with ID3v2.4 and APIC Cover Art):**
 ```text
-┌──── Acoustic Fingerprint ──────────────────────┐
-│ File: 01 - Daft Punk - One More Time.flac      │
-│ Duration: 320.00s                              │
-│ Chromaprint Fingerprint:                       │
-│ AQAAA0mUaEkSRZEGAAyV4...                       │
-└────────────────────────────────────────────────┘
- Parsed Heuristic Metadata Hints 
-┌──────────────┬───────────────┐
-│ Field        │ Value         │
-├──────────────┼───────────────┤
-│ Title        │ One More Time │
-│ Artist       │ Daft Punk     │
-│ Album        │ None          │
-│ Track_number │ 1             │
-└──────────────┴───────────────┘
+┌────────────────────────── Audio Stream Properties ──────────────────────────┐
+│ Path: ./music/Daft Punk - Technologic.mp3                                   │
+│ Format: MP3                                                                 │
+│ Duration: 04:44 (284.12s)                                                   │
+│ Specs: 44100 Hz, 2 Ch, 16-bit                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+            ID3 Tags             
+┌─────────────┬─────────────────┐
+│ Tag Key     │ Value(s)        │
+├─────────────┼─────────────────┤
+│ ALBUM       │ Human After All │
+│ ALBUMARTIST │ Daft Punk       │
+│ ARTIST      │ Daft Punk       │
+│ DATE        │ 2005-03-09      │
+│ DISCNUMBER  │ 1/1             │
+│ GENRE       │ House           │
+│ ISRC        │ GBDUW0400109    │
+│ TITLE       │ Technologic     │
+│ TRACKNUMBER │ 9               │
+│ TRACKTOTAL  │ 10              │
+└─────────────┴─────────────────┘
+┌─────────── Attached Picture (APIC) ───────────┐
+│ Type: Cover (front) (PictureType.COVER_FRONT) │
+│ MIME: image/jpeg                              │
+│ Resolution: 1500x1500                         │
+│ Bit Depth: 24-bit                             │
+│ Size: 273.9 KB                                │
+└───────────────────────────────────────────────┘
 ```
 
 ---
 
-### 4. `inject` — Resolve & Inject Metadata and High-Res Cover Art
+### 3. `inject` — Resolve & Inject Metadata into FLAC and MP3
 
-Executes the waterfall pipeline against audio tracks.
+Executes the waterfall pipeline to resolve and write canonical metadata and high-res cover art.
 
 ```bash
 # 1. Preview changes safely without modifying files (Dry-Run mode)
 flac-meta-injector inject ./music/ --dry-run
 
-# 2. Inject missing metadata and cover art into a single file
-flac-meta-injector inject ./music/track.flac
+# 2. Inject missing metadata and cover art into a single FLAC or MP3
+flac-meta-injector inject ./music/track.mp3
 
 # 3. Inject across a folder with a custom confidence threshold (0.0 to 1.0)
 flac-meta-injector inject ./music/ --threshold 0.75
 
-# 4. Force-overwrite existing non-empty tags with canonical metadata
+# 4. Force-overwrite existing tags with fresh canonical metadata
 flac-meta-injector inject ./music/ --overwrite
+
+# 5. Disable auto-converting WAV files when processing mixed folders
+flac-meta-injector inject ./music/ --no-convert-wav
 ```
 
 **CLI Flags for `inject`:**
 - `--dry-run`: Simulates provider resolution and prints what tags and artwork would be written without altering disk files.
 - `--threshold, -t FLOAT`: Minimum confidence score (default `0.70`) required to execute injection.
-- `--overwrite`: Overwrites existing non-empty Vorbis comments. By default (`--no-overwrite`), existing non-empty tags are preserved and only missing fields are injected.
+- `--overwrite`: Overwrites existing non-empty tags. By default (`--no-overwrite`), existing non-empty tags are preserved and only missing fields are injected.
+- `--convert-wav / --no-convert-wav`: Auto-converts any discovered WAV files to FLAC and injects tags into the resulting FLAC (default: `True`).
 - `--recursive / --no-recursive, -r`: Recurse into subdirectories (default: `True`).
 
 ---
 
-## Standard Vorbis Comment Tag Mapping
+### 4. `convert` — Convert WAV / Audio to FLAC with Auto-Injection
 
-`flac-meta-injector` maps canonical metadata into standardized uppercase Vorbis comment keys:
+Losslessly encodes uncompressed audio files (`.wav`, `.wave`, `.aiff`, `.aif`) to FLAC using FFmpeg, and automatically resolves and injects metadata into the resulting tracks.
 
-| Canonical Field | Vorbis Comment Key | Example Value | Source / Notes |
+```bash
+# 1. Convert a WAV file to FLAC and auto-inject metadata and cover art
+flac-meta-injector convert ./music/recording.wav
+
+# 2. Convert an entire folder of WAV files into a dedicated FLAC directory
+flac-meta-injector convert ./uncompressed_wavs/ --output-dir ./flac_library/
+
+# 3. Convert and delete source WAV files only after verified conversion
+flac-meta-injector convert ./music/ --delete-original
+
+# 4. Convert without injecting metadata (pure audio conversion)
+flac-meta-injector convert ./music/ --no-inject
+
+# 5. Customize FLAC compression level (0-12, default 8)
+flac-meta-injector convert ./music/ --compression-level 8
+```
+
+**CLI Flags for `convert`:**
+- `--output-dir, -o PATH`: Optional destination folder for converted FLAC files.
+- `--inject / --no-inject`: Automatically resolve and inject metadata after conversion (default: `True`).
+- `--delete-original`: Safely delete source WAV file after verified FLAC creation (default: `False`).
+- `--compression-level, -c INT`: FLAC compression level (0–12, default: `8`).
+- `--threshold, -t FLOAT`: Minimum confidence threshold for auto-injection (default: `0.70`).
+- `--dry-run`: Preview conversion paths without modifying files.
+
+---
+
+### 5. `fingerprint` — Acoustic Fingerprint & Heuristic Parser
+
+Runs `fpcalc` against an audio file, prints its Chromaprint representation, and parses candidate hints from filenames and directory hierarchies.
+
+```bash
+flac-meta-injector fingerprint ./music/"01 - Daft Punk - One More Time.mp3"
+```
+
+---
+
+## Standard Tag Mapping Across Formats
+
+`flac-meta-injector` automatically maps canonical metadata across both **FLAC Vorbis Comments** and **MP3 ID3v2.4 frames**:
+
+| Canonical Field | FLAC Vorbis Tag | MP3 ID3v2.4 Frame | Example Value |
 |---|---|---|---|
-| Track Title | `TITLE` | `One More Time` | Authoritative |
-| Artist Name | `ARTIST` | `Daft Punk` | Authoritative |
-| Album Name | `ALBUM` | `Discovery` | Authoritative |
-| Album Artist | `ALBUMARTIST` | `Daft Punk` | Fallback to `ARTIST` if single artist |
-| Track Number | `TRACKNUMBER` | `1` | Formatted without leading zeroes |
-| Total Tracks | `TRACKTOTAL` | `14` | Canonical release size |
-| Disc Number | `DISCNUMBER` | `1` | Multi-disc support |
-| Disc Total | `DISCTOTAL` | `1` | Multi-disc support |
-| Release Date | `DATE` | `2001-03-12` | Full ISO-8601 string |
-| Release Year | `YEAR` | `2001` | 4-digit calendar year |
-| Genre(s) | `GENRE` | `Electronic` | Multi-value comment block |
-| ISRC Code | `ISRC` | `GBDUW0100055` | Authoritative 12-char identifier |
-| Tempo (BPM) | `BPM` | `123.0` | Extracted via Deezer audio analysis |
-| Advisory | `ITUNESADVISORY` | `2` | `1` = Explicit, `2` = Clean |
-| AcoustID GUID | `ACOUSTID_ID` | `aca0f087-...` | Acoustic fingerprint lookup |
-| MusicBrainz Recording ID | `MUSICBRAINZ_TRACKID` | `fad84787-...` | MusicBrainz WS2 |
-| MusicBrainz Release ID | `MUSICBRAINZ_ALBUMID` | `aca0f087-...` | MusicBrainz WS2 |
-| Cover Artwork | `Picture Block (Type 3)`| *Binary JPEG/PNG* | Up to **3000x3000px** uncompressed |
+| Track Title | `TITLE` | `TIT2` | `One More Time` |
+| Lead Artist | `ARTIST` | `TPE1` | `Daft Punk` |
+| Album Name | `ALBUM` | `TALB` | `Discovery` |
+| Album Artist | `ALBUMARTIST` | `TPE2` | `Daft Punk` |
+| Track Number / Total | `TRACKNUMBER`, `TRACKTOTAL` | `TRCK` (`num/total`) | `1/14` |
+| Disc Number / Total | `DISCNUMBER`, `DISCTOTAL` | `TPOS` (`num/total`) | `1/1` |
+| Release Date | `DATE`, `YEAR` | `TDRC` | `2001-03-12` |
+| Genre(s) | `GENRE` | `TCON` | `Electronic` |
+| ISRC Code | `ISRC` | `TSRC` | `GBDUW0100055` |
+| Tempo (BPM) | `BPM` | `TBPM` | `123.0` |
+| Advisory | `ITUNESADVISORY` | `TXXX:ITUNESADVISORY` | `1` (Explicit) / `2` (Clean) |
+| MusicBrainz Recording ID | `MUSICBRAINZ_TRACKID` | `TXXX:MusicBrainz Track Id` | `fad84787-...` |
+| MusicBrainz Album ID | `MUSICBRAINZ_ALBUMID` | `TXXX:MusicBrainz Album Id` | `aca0f087-...` |
+| Cover Artwork | `Picture Block (Type 3)` | `APIC (Type 3: Front)` | Up to **3000x3000px** uncompressed |
 
 ---
 
 ## Verification & Testing
 
-The repository includes a comprehensive test suite with synthetic audio fixtures generated via `ffmpeg` (sine waves):
+The repository includes a comprehensive 34-test suite covering FLAC, MP3, and WAV workflows with synthetic audio fixtures generated via `ffmpeg`:
 
 ```bash
 # Run the complete test suite
 pytest -v
 
 # Run targeted test suites
-pytest tests/test_scanner.py -v
-pytest tests/test_merger.py -v
-pytest tests/test_providers.py -v
-pytest tests/test_writer.py -v
+pytest tests/test_converter.py -v   # WAV to FLAC conversion tests
+pytest tests/test_mp3.py -v         # MP3 ID3 & APIC injection tests
+pytest tests/test_scanner.py -v     # Multi-format scanner tests
+pytest tests/test_merger.py -v      # Waterfall and fuzzy match tests
+pytest tests/test_providers.py -v   # Async API provider tests
+pytest tests/test_writer.py -v      # Mutagen writer verification tests
 
-# Run linting and code quality checks
+# Run code quality and linting checks
 ruff check src tests
 ```
 

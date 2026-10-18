@@ -1,4 +1,4 @@
-"""Pytest fixtures and synthetic FLAC audio generator using ffmpeg."""
+"""Pytest fixtures and synthetic audio generators (FLAC, MP3, WAV) using ffmpeg."""
 
 import io
 import shutil
@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 from mutagen.flac import FLAC, Picture
+from mutagen.mp3 import MP3
+from mutagen.wave import WAVE
 from PIL import Image
 
 
@@ -47,11 +49,72 @@ def generate_flac_audio(output_path: Path, duration_seconds: int = 2) -> Path:
     if proc.returncode != 0:
         raise RuntimeError(f"ffmpeg failed to create synthetic FLAC: {proc.stderr}")
 
-    # Strip any tags that ffmpeg might add by default
     audio = FLAC(str(output_path))
     audio.clear()
     audio.clear_pictures()
     audio.save()
+
+    return output_path
+
+
+def generate_wav_audio(output_path: Path, duration_seconds: int = 2) -> Path:
+    """Generate a clean synthetic WAV audio file using ffmpeg."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    ffmpeg_bin = get_ffmpeg_binary()
+
+    cmd = [
+        ffmpeg_bin,
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        f"sine=frequency=440:duration={duration_seconds}",
+        "-c:a",
+        "pcm_s16le",
+        str(output_path),
+    ]
+
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed to create synthetic WAV: {proc.stderr}")
+
+    # Ensure clean tags
+    try:
+        w = WAVE(str(output_path))
+        if w.tags:
+            w.clear()
+            w.save()
+    except Exception:
+        pass
+
+    return output_path
+
+
+def generate_mp3_audio(output_path: Path, duration_seconds: int = 2) -> Path:
+    """Generate a clean synthetic MP3 audio file using ffmpeg."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    ffmpeg_bin = get_ffmpeg_binary()
+
+    cmd = [
+        ffmpeg_bin,
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        f"sine=frequency=440:duration={duration_seconds}",
+        "-c:a",
+        "libmp3lame",
+        str(output_path),
+    ]
+
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed to create synthetic MP3: {proc.stderr}")
+
+    audio = MP3(str(output_path))
+    if audio.tags:
+        audio.tags.clear()
+        audio.save()
 
     return output_path
 
@@ -79,6 +142,20 @@ def untagged_flac(fixtures_dir: Path) -> Path:
 
 
 @pytest.fixture
+def untagged_wav(fixtures_dir: Path) -> Path:
+    """A clean 2-second WAV uncompressed audio file."""
+    target = fixtures_dir / "sample_recording.wav"
+    return generate_wav_audio(target, duration_seconds=2)
+
+
+@pytest.fixture
+def untagged_mp3(fixtures_dir: Path) -> Path:
+    """A clean 2-second MP3 file without tags."""
+    target = fixtures_dir / "sample_track.mp3"
+    return generate_mp3_audio(target, duration_seconds=2)
+
+
+@pytest.fixture
 def tagged_flac(fixtures_dir: Path) -> Path:
     """A 2-second FLAC with complete Vorbis comments and embedded cover art."""
     target = fixtures_dir / "tagged_track.flac"
@@ -92,7 +169,6 @@ def tagged_flac(fixtures_dir: Path) -> Path:
     audio["DATE"] = ["2009-09-22"]
     audio["GENRE"] = ["Progressive House"]
 
-    # Embed dummy picture block
     pic = Picture()
     pic.type = 3
     pic.mime = "image/jpeg"

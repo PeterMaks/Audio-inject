@@ -12,6 +12,7 @@ from rich.progress import Progress, TextColumn
 from rich.table import Table
 
 from flac_injector.config import get_settings
+from flac_injector.converter import convert_to_flac
 from flac_injector.fingerprint import generate_fingerprint, parse_filename_metadata
 from flac_injector.merger import aggregate_candidates
 from flac_injector.models import TrackMetadata
@@ -19,7 +20,7 @@ from flac_injector.providers.apple_itunes import AppleITunesProvider
 from flac_injector.providers.deezer import DeezerProvider
 from flac_injector.providers.musicbrainz import MusicBrainzProvider
 from flac_injector.providers.spotify import SpotifyProvider
-from flac_injector.scanner import inspect_flac, scan_path
+from flac_injector.scanner import inspect_audio, scan_path
 from flac_injector.writer import inject_metadata
 
 if sys.platform == "win32":
@@ -33,7 +34,7 @@ if sys.platform == "win32":
 
 app = typer.Typer(
     name="flac-meta-injector",
-    help="Production-grade FLAC metadata and cover art injector.",
+    help="Production-grade audio metadata & cover art injector (FLAC & MP3) and WAV converter.",
     add_completion=False,
 )
 console = Console()
@@ -43,7 +44,7 @@ console = Console()
 def scan(
     target: Annotated[
         Path,
-        typer.Argument(help="Path to a FLAC file or directory containing FLAC files."),
+        typer.Argument(help="Path to an audio file or directory (FLAC, MP3, WAV)."),
     ],
     recursive: Annotated[
         bool,
@@ -54,7 +55,7 @@ def scan(
         typer.Option("--only-incomplete", "-i", help="Display only files missing tags or art."),
     ] = False,
 ) -> None:
-    """Scan local FLAC tracks and report metadata and cover art completeness."""
+    """Scan audio files (FLAC, MP3, WAV) and report metadata and cover art completeness."""
     if not target.exists():
         console.print(f"[bold red]Target path does not exist:[/bold red] {target}")
         raise typer.Exit(code=1)
@@ -63,16 +64,17 @@ def scan(
         TextColumn("[progress.description]{task.description}"),
         console=console,
     ) as progress:
-        task = progress.add_task("Scanning FLAC files...", total=None)
+        task = progress.add_task("Scanning audio files...", total=None)
         results = scan_path(target, recursive=recursive)
         progress.update(task, completed=True)
 
     if not results:
-        console.print("[yellow]No FLAC files found in the specified path.[/yellow]")
+        console.print("[yellow]No supported audio files found in the specified path.[/yellow]")
         return
 
-    table = Table(title="FLAC Metadata Scan Results", header_style="bold cyan")
+    table = Table(title="Audio Metadata Scan Results", header_style="bold cyan")
     table.add_column("Track / Path", style="dim")
+    table.add_column("Format", justify="center")
     table.add_column("Title", style="bold")
     table.add_column("Artist")
     table.add_column("Album")
@@ -81,7 +83,11 @@ def scan(
     table.add_column("Missing Fields")
 
     incomplete_count = 0
+    format_counts: dict[str, int] = {}
     for res in results:
+        fmt = res.audio_format.upper()
+        format_counts[fmt] = format_counts.get(fmt, 0) + 1
+
         if only_incomplete and not res.is_incomplete:
             continue
 
@@ -104,6 +110,7 @@ def scan(
 
         table.add_row(
             res.path.name,
+            f"[cyan]{fmt}[/cyan]",
             title,
             artist,
             album,
@@ -113,9 +120,10 @@ def scan(
         )
 
     console.print(table)
+    fmt_summary = "  |  ".join([f"{k}: [bold]{v}[/bold]" for k, v in sorted(format_counts.items())])
     console.print(
         Panel(
-            f"Total Scanned: [bold]{len(results)}[/bold]  |  "
+            f"Total Scanned: [bold]{len(results)}[/bold] ({fmt_summary})  |  "
             f"Complete: [bold green]{len(results) - incomplete_count}[/bold green]  |  "
             f"Incomplete: [bold red]{incomplete_count}[/bold red]",
             title="Scan Summary",
@@ -128,28 +136,37 @@ def scan(
 def inspect(
     file_path: Annotated[
         Path,
-        typer.Argument(help="Path to the FLAC file to inspect in detail."),
+        typer.Argument(help="Path to the audio file (FLAC, MP3, WAV) to inspect in detail."),
     ],
 ) -> None:
-    """Inspect detailed Vorbis Comment tags and Picture blocks of a FLAC file."""
+    """Inspect detailed tags, properties, and cover art blocks of an audio file."""
     if not file_path.is_file():
         console.print(f"[bold red]File not found:[/bold red] {file_path}")
         raise typer.Exit(code=1)
 
-    res = inspect_flac(file_path)
+    res = inspect_audio(file_path)
 
-    # Audio details panel
+    # Audio stream properties
     mins = int(res.duration_seconds // 60)
     secs = int(res.duration_seconds % 60)
     audio_info = (
         f"Path: [bold]{res.path}[/bold]\n"
+        f"Format: [bold cyan]{res.audio_format.upper()}[/bold cyan]\n"
         f"Duration: [bold]{mins:02d}:{secs:02d}[/bold] ({res.duration_seconds:.2f}s)\n"
-        f"Format: [bold]{res.sample_rate} Hz[/bold], {res.channels} Ch, {res.bits_per_sample}-bit"
+        f"Specs: [bold]{res.sample_rate} Hz[/bold], {res.channels} Ch, {res.bits_per_sample}-bit"
     )
-    console.print(Panel(audio_info, title="FLAC Audio Stream Properties", expand=False))
+    console.print(Panel(audio_info, title="Audio Stream Properties", expand=False))
 
-    # Vorbis Comments Table
-    tags_table = Table(title="Vorbis Comments", header_style="bold magenta")
+    if res.audio_format == "wav":
+        console.print(
+            "[yellow]WAV file detected (uncompressed audio container). "
+            "Use 'flac-meta-injector convert' to encode to FLAC before tagging.[/yellow]"
+        )
+        return
+
+    # Metadata tags table
+    tag_header = "Vorbis Comments" if res.audio_format == "flac" else "ID3 Tags"
+    tags_table = Table(title=tag_header, header_style="bold magenta")
     tags_table.add_column("Tag Key", style="cyan", no_wrap=True)
     tags_table.add_column("Value(s)")
 
@@ -157,10 +174,10 @@ def inspect(
         for k, v in sorted(res.existing_tags.items()):
             tags_table.add_row(k, " // ".join(v))
     else:
-        tags_table.add_row("[italic dim]No tags[/italic dim]", "—")
+        tags_table.add_row("[italic dim]No tags[/italic dim]", "-")
     console.print(tags_table)
 
-    # Picture Block Panel
+    # Picture Block / APIC Panel
     if res.has_cover_art and res.cover_art_info:
         res_w = res.cover_art_info["width"]
         res_h = res.cover_art_info["height"]
@@ -171,16 +188,18 @@ def inspect(
             f"Bit Depth: [bold]{res.cover_art_info['depth']}-bit[/bold]\n"
             f"Size: [bold]{res.cover_art_info['size_bytes'] / 1024:.1f} KB[/bold]"
         )
-        console.print(Panel(art_desc, title="Embedded Picture Block", expand=False))
+        is_flac = res.audio_format == "flac"
+        title_box = "Embedded Picture Block" if is_flac else "Attached Picture (APIC)"
+        console.print(Panel(art_desc, title=title_box, expand=False))
     else:
-        console.print("[yellow]No embedded Picture blocks detected in this FLAC file.[/yellow]")
+        console.print("[yellow]No embedded front cover art detected in this audio file.[/yellow]")
 
 
 @app.command()
 def fingerprint(
     file_path: Annotated[
         Path,
-        typer.Argument(help="Path to the FLAC file to fingerprint."),
+        typer.Argument(help="Path to the audio file to fingerprint."),
     ],
 ) -> None:
     """Generate Chromaprint fingerprint and parse filename heuristics."""
@@ -215,9 +234,25 @@ async def _resolve_and_inject_track(
     threshold: float,
     dry_run: bool,
     overwrite: bool,
+    convert_wav: bool = True,
 ) -> bool:
-    """Resolve metadata across providers and inject into file."""
-    scan_res = inspect_flac(file_path)
+    """Resolve metadata across providers and inject into FLAC or MP3 (or convert WAV)."""
+    scan_res = inspect_audio(file_path)
+
+    # If it is a WAV file and conversion is enabled, convert to FLAC first
+    if scan_res.audio_format in ("wav", "wave", "aiff", "aif"):
+        if not convert_wav:
+            console.print(
+                f"[yellow]Skipping WAV file (conversion disabled):[/yellow] {file_path.name}"
+            )
+            return False
+        if dry_run:
+            console.print(f"[dim cyan][DRY-RUN] Would convert {file_path.name} to FLAC[/dim cyan]")
+        else:
+            console.print(f"[cyan]Converting WAV to FLAC:[/cyan] {file_path.name}...")
+            file_path = convert_to_flac(file_path)
+            scan_res = inspect_audio(file_path)
+
     if not scan_res.is_incomplete and not overwrite:
         console.print(f"[dim]Skipping complete track:[/dim] {file_path.name}")
         return True
@@ -313,9 +348,15 @@ async def _resolve_and_inject_track(
                 break
 
     if dry_run:
+        tag_count = (
+            len(best.to_vorbis_comments())
+            if scan_res.audio_format == "flac"
+            else len(best.to_id3_dict())
+        )
+        art_desc = "cover art" if art_bytes else "no art"
         console.print(
-            f"[dim cyan][DRY-RUN] Would inject {len(best.to_vorbis_comments())} tags "
-            f"and {'cover art' if art_bytes else 'no art'}[/dim cyan]"
+            f"[dim cyan][DRY-RUN] Would inject {tag_count} tags "
+            f"and {art_desc} into {file_path.suffix.upper()}[/dim cyan]"
         )
         return True
 
@@ -335,7 +376,7 @@ async def _resolve_and_inject_track(
 def inject(
     target: Annotated[
         Path,
-        typer.Argument(help="Path to a FLAC file or directory containing FLAC files."),
+        typer.Argument(help="Path to an audio file or directory (FLAC, MP3, WAV)."),
     ],
     threshold: Annotated[
         float,
@@ -349,22 +390,39 @@ def inject(
         bool,
         typer.Option("--overwrite", help="Overwrite existing non-empty tags."),
     ] = False,
+    convert_wav: Annotated[
+        bool,
+        typer.Option(
+            "--convert-wav/--no-convert-wav",
+            help="Auto-convert WAV files to FLAC before injecting.",
+        ),
+    ] = True,
     recursive: Annotated[
         bool,
         typer.Option("--recursive/--no-recursive", "-r", help="Recurse into subdirectories."),
     ] = True,
 ) -> None:
-    """Scan and inject standardized Vorbis Comments and cover art into FLAC files."""
+    """Scan and inject standardized metadata and cover art into FLAC and MP3 files."""
     if not target.exists():
         console.print(f"[bold red]Target path does not exist:[/bold red] {target}")
         raise typer.Exit(code=1)
 
     settings = get_settings()
-    glob_pat = "**/*.flac" if recursive else "*.flac"
-    flac_files = [target] if target.is_file() else sorted(target.glob(glob_pat))
+    allowed_exts = {".flac", ".mp3"}
+    if convert_wav:
+        allowed_exts.update({".wav", ".wave", ".aiff", ".aif"})
 
-    if not flac_files:
-        console.print("[yellow]No FLAC files found to process.[/yellow]")
+    if target.is_file():
+        audio_files = [target] if target.suffix.lower() in allowed_exts else []
+    else:
+        glob_pat = "**/*" if recursive else "*"
+        audio_files = [
+            p for p in sorted(target.glob(glob_pat))
+            if p.is_file() and p.suffix.lower() in allowed_exts
+        ]
+
+    if not audio_files:
+        console.print("[yellow]No supported audio files found to process.[/yellow]")
         return
 
     async def _run_all() -> None:
@@ -375,19 +433,138 @@ def inject(
             SpotifyProvider(settings=settings),
         ]
         try:
-            for file_path in flac_files:
+            for file_path in audio_files:
                 await _resolve_and_inject_track(
                     file_path,
                     providers,
                     threshold,
                     dry_run,
                     overwrite,
+                    convert_wav=convert_wav,
                 )
         finally:
             for p in providers:
                 await p.close()
 
     asyncio.run(_run_all())
+
+
+@app.command()
+def convert(
+    target: Annotated[
+        Path,
+        typer.Argument(help="Path to a WAV file or directory containing audio files to convert."),
+    ],
+    output_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--output-dir", "-o",
+            help="Optional destination directory for converted FLACs.",
+        ),
+    ] = None,
+    inject_tags: Annotated[
+        bool,
+        typer.Option(
+            "--inject/--no-inject",
+            help="Automatically resolve and inject metadata after conversion.",
+        ),
+    ] = True,
+    delete_original: Annotated[
+        bool,
+        typer.Option(
+            "--delete-original",
+            help="Delete source WAV files after successful conversion.",
+        ),
+    ] = False,
+    compression_level: Annotated[
+        int,
+        typer.Option("--compression-level", "-c", help="FLAC compression level (0-12, default 8)."),
+    ] = 8,
+    threshold: Annotated[
+        float,
+        typer.Option("--threshold", "-t", help="Minimum confidence threshold for auto-injection."),
+    ] = 0.70,
+    recursive: Annotated[
+        bool,
+        typer.Option("--recursive/--no-recursive", "-r", help="Recurse into subdirectories."),
+    ] = True,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Preview conversions without writing files."),
+    ] = False,
+) -> None:
+    """Convert WAV / uncompressed audio files into FLAC and optionally inject tags."""
+    if not target.exists():
+        console.print(f"[bold red]Target path does not exist:[/bold red] {target}")
+        raise typer.Exit(code=1)
+
+    wav_exts = {".wav", ".wave", ".aiff", ".aif"}
+    if target.is_file():
+        source_files = [target] if target.suffix.lower() in wav_exts else []
+    else:
+        pattern = "**/*" if recursive else "*"
+        source_files = [
+            p for p in sorted(target.glob(pattern))
+            if p.is_file() and p.suffix.lower() in wav_exts
+        ]
+
+    if not source_files:
+        console.print("[yellow]No WAV / uncompressed audio files found to convert.[/yellow]")
+        return
+
+    console.print(f"[bold]Found {len(source_files)} audio file(s) to convert to FLAC.[/bold]")
+
+    settings = get_settings()
+
+    async def _run_convert_and_inject() -> None:
+        providers = [
+            MusicBrainzProvider(settings=settings),
+            AppleITunesProvider(settings=settings),
+            DeezerProvider(settings=settings),
+            SpotifyProvider(settings=settings),
+        ] if inject_tags else []
+
+        try:
+            for src_file in source_files:
+                dest = (
+                    (output_dir / f"{src_file.stem}.flac")
+                    if output_dir
+                    else src_file.with_suffix(".flac")
+                )
+                if dry_run:
+                    console.print(
+                        f"[dim cyan][DRY-RUN] Would convert {src_file.name} -> {dest.name} "
+                        f"(Compression: {compression_level})[/dim cyan]"
+                    )
+                    continue
+
+                console.print(
+                    f"[cyan]Converting:[/cyan] {src_file.name} -> [bold]{dest.name}[/bold]"
+                )
+                converted_path = convert_to_flac(
+                    src_file,
+                    output_path=dest,
+                    delete_original=delete_original,
+                    compression_level=compression_level,
+                )
+                console.print(
+                    f"[bold green][OK] Converted successfully:[/bold green] {converted_path.name}"
+                )
+
+                if inject_tags and providers:
+                    console.print(f"[cyan]Injecting metadata into:[/cyan] {converted_path.name}...")
+                    await _resolve_and_inject_track(
+                        converted_path,
+                        providers,
+                        threshold=threshold,
+                        dry_run=False,
+                        overwrite=False,
+                    )
+        finally:
+            for p in providers:
+                await p.close()
+
+    asyncio.run(_run_convert_and_inject())
 
 
 if __name__ == "__main__":

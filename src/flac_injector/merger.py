@@ -4,6 +4,7 @@ from typing import Any
 
 from rapidfuzz import fuzz
 
+from flac_injector.artwork import verify_artwork_candidate
 from flac_injector.models import TrackMetadata
 
 
@@ -13,9 +14,27 @@ def calculate_confidence(
     hints: dict[str, Any],
 ) -> float:
     """Calculate normalized confidence score (0.0 to 1.0) for a candidate track."""
+    # Discard unknown / placeholder candidates immediately
+    cand_title_lower = candidate.title.strip().lower()
+    cand_artist_lower = candidate.artist.strip().lower()
+    if cand_title_lower in ("unknown", "unknown title", "untitled", ""):
+        return 0.0
+    if cand_artist_lower in ("unknown", "unknown artist", ""):
+        return 0.0
+
+    hint_title = str(hints.get("title") or "").strip().lower()
+    hint_artist = str(hints.get("artist") or "").strip().lower()
+    hint_album = str(hints.get("album") or "").strip().lower()
+
     # 1. Authoritative confidence if resolved via fingerprint or ISRC
     if candidate.acoustid_id or candidate.musicbrainz_trackid:
         base_score = max(0.92, candidate.confidence_score)
+        # Guard against AcoustID crowdsourced collisions when clear hints exist
+        if hint_title and hint_artist:
+            title_sim = fuzz.token_sort_ratio(candidate.title.lower(), hint_title) / 100.0
+            artist_sim = fuzz.token_sort_ratio(candidate.artist.lower(), hint_artist) / 100.0
+            if title_sim < 0.15 and artist_sim < 0.15:
+                base_score = 0.20
     elif candidate.isrc:
         base_score = max(0.90, candidate.confidence_score)
     else:
@@ -94,6 +113,17 @@ def aggregate_candidates(
 
     # Waterfall field enrichment from remaining candidates
     for _, cand in scored_candidates[1:]:
+        # 0. Replace placeholder album or artist with real metadata from remaining candidates
+        if merged.album.strip().lower() in ("unknown album", "unknown", "untitled", ""):
+            if cand.album and cand.album.strip().lower() not in ("unknown album", "unknown", "untitled", ""):
+                merged.album = cand.album
+                if cand.album_artist and cand.album_artist.strip().lower() not in ("unknown", "unknown artist", ""):
+                    merged.album_artist = cand.album_artist
+
+        if merged.artist.strip().lower() in ("unknown artist", "unknown", ""):
+            if cand.artist and cand.artist.strip().lower() not in ("unknown artist", "unknown", ""):
+                merged.artist = cand.artist
+
         # 1. Fill missing ISRC
         if not merged.isrc and cand.isrc:
             merged.isrc = cand.isrc
@@ -147,12 +177,35 @@ def aggregate_candidates(
             if k not in merged.extra_tags:
                 merged.extra_tags[k] = v
 
-    # Cover Art Waterfall: Select the candidate with the highest resolution cover art
+    # Cover Art Waterfall: Select the candidate with the highest resolution verified cover art
+    # Verify merged track's candidate cover art first
+    if merged.cover_art_url:
+        if not verify_artwork_candidate(
+            merged,
+            candidate_artist=best_candidate.artist,
+            candidate_album=best_candidate.album,
+            candidate_title=best_candidate.title,
+            candidate_isrc=best_candidate.isrc,
+        ):
+            merged.cover_art_url = None
+            merged.cover_art_width = None
+            merged.cover_art_height = None
+
     best_art_url = merged.cover_art_url
     best_res = (merged.cover_art_width or 0) * (merged.cover_art_height or 0)
 
     for _, cand in scored_candidates:
         if cand.cover_art_url:
+            # Enforce strict candidate verification gate using RapidFuzz
+            if not verify_artwork_candidate(
+                merged,
+                candidate_artist=cand.artist,
+                candidate_album=cand.album,
+                candidate_title=cand.title,
+                candidate_isrc=cand.isrc,
+            ):
+                continue
+
             cand_res = (cand.cover_art_width or 0) * (cand.cover_art_height or 0)
             if cand_res > best_res or not best_art_url:
                 best_art_url = cand.cover_art_url

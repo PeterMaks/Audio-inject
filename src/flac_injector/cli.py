@@ -11,6 +11,7 @@ from rich.panel import Panel
 from rich.progress import Progress, TextColumn
 from rich.table import Table
 
+from flac_injector.artwork import ArtworkCache
 from flac_injector.config import get_settings
 from flac_injector.converter import convert_to_flac
 from flac_injector.fingerprint import generate_fingerprint, parse_filename_metadata
@@ -22,7 +23,7 @@ from flac_injector.providers.discogs import DiscogsProvider
 from flac_injector.providers.musicbrainz import MusicBrainzProvider
 from flac_injector.providers.spotify import SpotifyProvider
 from flac_injector.scanner import inspect_audio, scan_path
-from flac_injector.writer import inject_metadata
+from flac_injector.writer import clean_embedded_art, inject_metadata
 
 if sys.platform == "win32":
     try:
@@ -236,6 +237,10 @@ async def _resolve_and_inject_track(
     dry_run: bool,
     overwrite: bool,
     convert_wav: bool = True,
+    overwrite_art: bool = False,
+    overwrite_unknown: bool = False,
+    overwrite_album: str | None = None,
+    art_cache: ArtworkCache | None = None,
 ) -> bool:
     """Resolve metadata across providers and inject into FLAC or MP3 (or convert WAV)."""
     scan_res = inspect_audio(file_path)
@@ -254,7 +259,25 @@ async def _resolve_and_inject_track(
             file_path = convert_to_flac(file_path)
             scan_res = inspect_audio(file_path)
 
-    if not scan_res.is_incomplete and not overwrite:
+    existing_album = scan_res.existing_tags.get("ALBUM", [""])[0].strip()
+    is_unknown_album = (
+        not existing_album
+        or existing_album.lower() in {
+            "unknown", "unknown album", "untitled", "none", "no album", "placeholder"
+        }
+    )
+
+    matches_overwrite_album = bool(
+        overwrite_album and existing_album.lower() == overwrite_album.strip().lower()
+    )
+
+    should_overwrite_this_track = (
+        overwrite
+        or (overwrite_unknown and is_unknown_album)
+        or matches_overwrite_album
+    )
+
+    if not scan_res.is_incomplete and not should_overwrite_this_track and not overwrite_art:
         console.print(f"[dim]Skipping complete track:[/dim] {file_path.name}")
         return True
 
@@ -346,12 +369,35 @@ async def _resolve_and_inject_track(
     # Step 5: Fetch Cover Art if needed
     art_bytes = None
     art_mime = None
-    if best.cover_art_url and (not scan_res.has_cover_art or overwrite):
-        for p in providers:
-            art_result = await p.fetch_cover_art(best.cover_art_url)
-            if art_result:
-                art_bytes, art_mime = art_result
-                break
+    should_fetch_art = (
+        not scan_res.has_cover_art
+        or overwrite
+        or overwrite_art
+        or should_overwrite_this_track
+    )
+    if best.cover_art_url and should_fetch_art:
+        if art_cache:
+            cached = art_cache.get(
+                best.artist,
+                best.album,
+                best.isrc or best.musicbrainz_albumid,
+            )
+            if cached:
+                art_bytes, art_mime = cached
+        if not art_bytes:
+            for p in providers:
+                art_result = await p.fetch_cover_art(best.cover_art_url)
+                if art_result:
+                    art_bytes, art_mime = art_result
+                    if art_cache:
+                        art_cache.set(
+                            best.artist,
+                            best.album,
+                            art_bytes,
+                            art_mime,
+                            best.isrc or best.musicbrainz_albumid,
+                        )
+                    break
 
     if dry_run:
         tag_count = (
@@ -372,7 +418,8 @@ async def _resolve_and_inject_track(
         best,
         cover_art_bytes=art_bytes,
         cover_art_mime=art_mime,
-        overwrite_existing=overwrite,
+        overwrite_existing=should_overwrite_this_track,
+        overwrite_art=(overwrite_art or should_overwrite_this_track),
     )
     console.print(f"[bold green][OK] Injected successfully:[/bold green] {file_path.name}")
     return True
@@ -396,6 +443,24 @@ def inject(
         bool,
         typer.Option("--overwrite", help="Overwrite existing non-empty tags."),
     ] = False,
+    overwrite_art: Annotated[
+        bool,
+        typer.Option("--overwrite-art", help="Force re-resolving and replacing album art even if track is complete."),
+    ] = False,
+    overwrite_unknown: Annotated[
+        bool,
+        typer.Option(
+            "--overwrite-unknown",
+            help="Selectively overwrite tracks whose existing album is 'Unknown Album' or missing.",
+        ),
+    ] = False,
+    overwrite_album: Annotated[
+        str | None,
+        typer.Option(
+            "--overwrite-album",
+            help="Selectively overwrite tracks whose existing album matches this specific name (e.g. 'Unknown Album').",
+        ),
+    ] = None,
     convert_wav: Annotated[
         bool,
         typer.Option(
@@ -432,6 +497,7 @@ def inject(
         return
 
     async def _run_all() -> None:
+        art_cache = ArtworkCache()
         providers = [
             MusicBrainzProvider(settings=settings),
             AppleITunesProvider(settings=settings),
@@ -448,6 +514,10 @@ def inject(
                     dry_run,
                     overwrite,
                     convert_wav=convert_wav,
+                    overwrite_art=overwrite_art,
+                    overwrite_unknown=overwrite_unknown,
+                    overwrite_album=overwrite_album,
+                    art_cache=art_cache,
                 )
         finally:
             for p in providers:
@@ -573,6 +643,78 @@ def convert(
                 await p.close()
 
     asyncio.run(_run_convert_and_inject())
+
+
+@app.command(name="clean-art")
+def clean_art(
+    target: Annotated[
+        Path,
+        typer.Argument(help="Path to an audio file or directory to clean duplicate art."),
+    ],
+    remove_folder_art: Annotated[
+        bool,
+        typer.Option(
+            "--remove-folder-art",
+            help="Remove loose folder.jpg/cover.jpg images that override track art in media players.",
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Preview art cleanup without writing to disk."),
+    ] = False,
+    recursive: Annotated[
+        bool,
+        typer.Option("--recursive/--no-recursive", "-r", help="Recurse into subdirectories."),
+    ] = True,
+) -> None:
+    """Deduplicate embedded picture blocks, purge legacy picture tags, and clean loose folder images."""
+    if not target.exists():
+        console.print(f"[bold red]Target path does not exist:[/bold red] {target}")
+        raise typer.Exit(code=1)
+
+    audio_exts = {".flac", ".mp3"}
+    if target.is_file():
+        audio_files = [target] if target.suffix.lower() in audio_exts else []
+        directories = [target.parent]
+    else:
+        glob_pat = "**/*" if recursive else "*"
+        audio_files = [p for p in sorted(target.glob(glob_pat)) if p.is_file() and p.suffix.lower() in audio_exts]
+        directories = [target] if not recursive else [d for d in [target, *target.glob("**/")] if d.is_dir()]
+
+    cleaned_count = 0
+    for f in audio_files:
+        res = clean_embedded_art(f, dry_run=dry_run)
+        if res["modified"]:
+            cleaned_count += 1
+            action = "[dim cyan][DRY-RUN] Would clean[/dim cyan]" if dry_run else "[bold green][OK] Cleaned art:[/bold green]"
+            console.print(f"{action} {f.name} ({res['pictures_before']} -> {res['pictures_after']} pic block(s))")
+
+    console.print(f"[bold]Processed {len(audio_files)} audio file(s): {cleaned_count} had duplicate art cleaned.[/bold]")
+
+    # Check for loose folder art
+    loose_art_names = {
+        "folder.jpg", "folder.png", "cover.jpg", "cover.png",
+        "albumart.jpg", "albumart.png", "front.jpg", "front.png"
+    }
+    found_loose: list[Path] = []
+    for d in directories:
+        for item in d.glob("*"):
+            if item.is_file():
+                name_lower = item.name.lower()
+                if name_lower in loose_art_names or (name_lower.startswith("albumart_") and name_lower.endswith(".jpg")):
+                    found_loose.append(item)
+
+    if found_loose:
+        console.print(f"\n[bold yellow]Found {len(found_loose)} loose folder image(s):[/bold yellow]")
+        for img in found_loose:
+            if remove_folder_art:
+                if dry_run:
+                    console.print(f"[dim cyan][DRY-RUN] Would remove loose image:[/dim cyan] {img}")
+                else:
+                    img.unlink()
+                    console.print(f"[bold red]Removed loose image:[/bold red] {img}")
+            else:
+                console.print(f"  [yellow]• {img}[/yellow] (Note: Causes Windows/media players to show the same cover for all files in this folder. Use [bold]--remove-folder-art[/bold] to delete).")
 
 
 if __name__ == "__main__":

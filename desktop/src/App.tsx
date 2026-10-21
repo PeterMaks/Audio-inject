@@ -64,7 +64,9 @@ export const App: React.FC = () => {
     let unlisten: (() => void) | undefined;
     onInjectorProgress((evt) => {
       setCurrentProgress(evt);
-      if (evt.cover_art_url) {
+      if (evt.stage === "start") {
+        setAmbientArtUrl(null);
+      } else if (evt.cover_art_url) {
         setAmbientArtUrl(evt.cover_art_url);
       }
     }).then((fn) => {
@@ -81,12 +83,11 @@ export const App: React.FC = () => {
     try {
       const full = await runInspect(item.path, true);
       setInspectedItem(full);
-      if (full.cover_art_data_url) {
-        setAmbientArtUrl(full.cover_art_data_url);
-      }
+      setAmbientArtUrl(full.cover_art_data_url ?? null);
     } catch (e) {
       console.error("Inspect failed:", e);
       setInspectedItem(item);
+      setAmbientArtUrl(null);
     }
   }, []);
 
@@ -213,6 +214,18 @@ export const App: React.FC = () => {
           false
         );
         setScannedItems(refreshed.items);
+
+        // Refresh inspectedItem if currently open
+        if (inspectedItem) {
+          const inspectedNewPath =
+            convertedMap.get(inspectedItem.path) || inspectedItem.path;
+          runInspect(inspectedNewPath, true)
+            .then((full) => {
+              setInspectedItem(full);
+              setAmbientArtUrl(full.cover_art_data_url ?? null);
+            })
+            .catch(() => {});
+        }
       }
     } catch (e) {
       console.error("Injection error:", e);
@@ -284,6 +297,18 @@ export const App: React.FC = () => {
           false
         );
         setScannedItems(refreshed.items);
+
+        // Refresh inspectedItem if currently open
+        if (inspectedItem) {
+          const inspectedNewPath =
+            conversionMap.get(inspectedItem.path) || inspectedItem.path;
+          runInspect(inspectedNewPath, true)
+            .then((full) => {
+              setInspectedItem(full);
+              setAmbientArtUrl(full.cover_art_data_url ?? null);
+            })
+            .catch(() => {});
+        }
       }
     } catch (e) {
       console.error("Conversion failed:", e);
@@ -400,9 +425,8 @@ export const App: React.FC = () => {
                   className="apple-btn-secondary flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/90"
                 >
                   <RefreshCw
-                    className={`w-3.5 h-3.5 text-[#30D158] ${
-                      isScanning ? "animate-spin" : ""
-                    }`}
+                    className={`w-3.5 h-3.5 text-[#30D158] ${isScanning ? "animate-spin" : ""
+                      }`}
                   />
                   <span>Rescan</span>
                 </button>

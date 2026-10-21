@@ -40,6 +40,7 @@ def inject_metadata(
     cover_art_bytes: bytes | None = None,
     cover_art_mime: str | None = None,
     overwrite_existing: bool = False,
+    overwrite_art: bool = False,
 ) -> dict[str, Any]:
     """Inject canonical metadata and cover art into a FLAC or MP3 audio file."""
     path = Path(file_path).resolve()
@@ -54,6 +55,7 @@ def inject_metadata(
             cover_art_bytes,
             cover_art_mime,
             overwrite_existing,
+            overwrite_art,
         )
     elif ext == ".mp3":
         return _inject_mp3(
@@ -62,6 +64,7 @@ def inject_metadata(
             cover_art_bytes,
             cover_art_mime,
             overwrite_existing,
+            overwrite_art,
         )
     elif ext in {".wav", ".wave", ".aiff", ".aif"}:
         raise InjectionError(
@@ -76,6 +79,7 @@ def inject_metadata(
             cover_art_bytes,
             cover_art_mime,
             overwrite_existing,
+            overwrite_art,
         )
 
 
@@ -85,6 +89,7 @@ def _inject_flac(
     cover_art_bytes: bytes | None,
     cover_art_mime: str | None,
     overwrite_existing: bool,
+    overwrite_art: bool = False,
 ) -> dict[str, Any]:
     """Inject Vorbis Comments and Picture block into a FLAC file."""
     try:
@@ -100,16 +105,54 @@ def _inject_flac(
     if audio.tags is None:
         audio.add_tags()
 
+    tag_aliases = {
+        "ALBUMARTIST": ["ALBUM ARTIST", "ALBUM_ARTIST", "BAND"],
+        "TRACKNUMBER": ["TRACK"],
+        "TRACKTOTAL": ["TOTALTRACKS"],
+        "DISCNUMBER": ["DISC"],
+        "DISCTOTAL": ["TOTALDISCS"],
+    }
+
     for key, values in vorbis_dict.items():
         key_upper = key.upper()
         if not overwrite_existing and key_upper in audio and audio[key_upper]:
+            # Deduplicate existing tag values if they contain duplicate entries
+            existing_vals = audio[key_upper]
+            seen_items: set[str] = set()
+            deduped: list[str] = []
+            for item in existing_vals:
+                s = str(item).strip()
+                if s.lower() not in seen_items:
+                    seen_items.add(s.lower())
+                    deduped.append(s)
+            if len(deduped) != len(existing_vals):
+                audio[key_upper] = deduped
             continue
+
         audio[key_upper] = values
         tags_injected.append(key_upper)
+
+        # Clean conflicting legacy alias tags to prevent repeating metadata in players
+        for alias in tag_aliases.get(key_upper, []):
+            if alias in audio:
+                del audio[alias]
 
     art_data = cover_art_bytes or metadata.cover_art_bytes
     art_injected = False
     art_info: dict[str, Any] = {}
+
+    # Guard existing valid cover art meeting COVER_ART_MIN_RESOLUTION
+    if art_data and not overwrite_existing and not overwrite_art:
+        from flac_injector.config import get_settings
+        min_res = get_settings().cover_art_min_resolution
+        has_valid_cover = any(
+            getattr(p, "type", None) == 3
+            and (getattr(p, "width", 0) or 0) >= min_res
+            and (getattr(p, "height", 0) or 0) >= min_res
+            for p in (audio.pictures or [])
+        )
+        if has_valid_cover:
+            art_data = None
 
     if art_data:
         try:
@@ -144,12 +187,15 @@ def _inject_flac(
             pic.depth = depth
             pic.data = art_data
 
-            other_pics = [p for p in audio.pictures if getattr(p, "type", None) != 3]
+            # Clear all pictures before adding the new verified Picture block
             audio.clear_pictures()
-            for p in other_pics:
-                audio.add_picture(p)
             audio.add_picture(pic)
             art_injected = True
+
+            # Clean legacy Vorbis comment picture tags that cause duplicate art display
+            for legacy_pic in ("METADATA_BLOCK_PICTURE", "COVERART", "COVERARTMIME"):
+                if legacy_pic in audio:
+                    del audio[legacy_pic]
             art_info = {
                 "mime": mime,
                 "width": width,
@@ -203,6 +249,7 @@ def _inject_mp3(
     cover_art_bytes: bytes | None,
     cover_art_mime: str | None,
     overwrite_existing: bool,
+    overwrite_art: bool = False,
 ) -> dict[str, Any]:
     """Inject ID3v2.4 frames and APIC cover art into an MP3 file."""
     try:
@@ -228,7 +275,14 @@ def _inject_mp3(
         if not overwrite_existing and frame_id in tags:
             return
         if isinstance(value, list):
-            tags.add(frame_cls(encoding=3, text=value))
+            seen_items: set[str] = set()
+            dedup_val: list[str] = []
+            for item in value:
+                s = str(item).strip()
+                if s.lower() not in seen_items:
+                    seen_items.add(s.lower())
+                    dedup_val.append(s)
+            tags.add(frame_cls(encoding=3, text=dedup_val))
         else:
             tags.add(frame_cls(encoding=3, text=[str(value)]))
         tags_injected.append(frame_id)
@@ -260,6 +314,25 @@ def _inject_mp3(
     art_injected = False
     art_info: dict[str, Any] = {}
 
+    # Guard existing valid cover art meeting COVER_ART_MIN_RESOLUTION
+    if art_data and not overwrite_existing and not overwrite_art:
+        from flac_injector.config import get_settings
+        min_res = get_settings().cover_art_min_resolution
+        apic_frames = tags.getall("APIC") if hasattr(tags, "getall") else []
+        has_valid_cover = False
+        for apic in apic_frames:
+            if getattr(apic, "type", 3) == 3:
+                try:
+                    with Image.open(io.BytesIO(apic.data)) as img:
+                        w, h = img.size
+                        if w >= min_res and h >= min_res:
+                            has_valid_cover = True
+                            break
+                except Exception:
+                    pass
+        if has_valid_cover:
+            art_data = None
+
     if art_data:
         try:
             with Image.open(io.BytesIO(art_data)) as img:
@@ -273,8 +346,12 @@ def _inject_mp3(
                 if mime == "image/jpg":
                     mime = "image/jpeg"
 
-            # Remove existing APIC cover frames
-            apic_keys = [k for k in tags.keys() if k.startswith("APIC")]
+            # Remove existing APIC cover frames cleanly
+            try:
+                tags.delall("APIC")
+            except Exception:
+                pass
+            apic_keys = [k for k in list(tags.keys()) if k.startswith("APIC")]
             for k in apic_keys:
                 del tags[k]
 
@@ -331,4 +408,99 @@ def _inject_mp3(
         "cover_art_injected": art_injected,
         "cover_art_info": art_info,
         "status": "success",
+    }
+
+
+def clean_embedded_art(file_path: Path | str, dry_run: bool = False) -> dict[str, Any]:
+    """Deduplicate embedded picture blocks and remove legacy picture tags from an audio file."""
+    path = Path(file_path).resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"Target audio file not found: {path}")
+
+    ext = path.suffix.lower()
+    if ext == ".flac":
+        try:
+            audio = FLAC(str(path))
+        except Exception as e:
+            raise InjectionError(f"Cannot open FLAC file {path}: {e}") from e
+
+        pics_before = len(audio.pictures) if audio.pictures else 0
+        legacy_removed = []
+        modified = False
+
+        # Clean legacy Vorbis comment picture tags
+        if audio.tags:
+            for tag in ["METADATA_BLOCK_PICTURE", "COVERART", "COVERARTMIME"]:
+                if tag in audio:
+                    legacy_removed.append(tag)
+                    if not dry_run:
+                        del audio[tag]
+                    modified = True
+
+        # Deduplicate picture blocks
+        if pics_before > 1:
+            # Pick the best front cover (type 3), or largest resolution/byte size
+            front_pics = [p for p in audio.pictures if getattr(p, "type", None) == 3]
+            best_pic = front_pics[0] if front_pics else audio.pictures[0]
+            # If multiple front pictures, pick the one with largest data
+            if front_pics:
+                best_pic = max(front_pics, key=lambda p: len(getattr(p, "data", b"")))
+
+            if not dry_run:
+                audio.clear_pictures()
+                audio.add_picture(best_pic)
+            modified = True
+
+        if modified and not dry_run:
+            audio.save()
+
+        pics_after = 1 if pics_before > 0 else 0
+        return {
+            "path": str(path),
+            "format": "flac",
+            "pictures_before": pics_before,
+            "pictures_after": pics_after if pics_before > 1 else pics_before,
+            "legacy_tags_removed": legacy_removed,
+            "modified": modified,
+        }
+
+    elif ext == ".mp3":
+        try:
+            audio = MP3(str(path), ID3=ID3)
+        except Exception as e:
+            raise InjectionError(f"Cannot open MP3 file {path}: {e}") from e
+
+        tags = audio.tags or {}
+        apic_keys = [k for k in tags.keys() if k.startswith("APIC")]
+        pics_before = len(apic_keys)
+        modified = False
+
+        if pics_before > 1:
+            # Keep the primary front cover (type 3), or the first APIC frame
+            front_apics = [tags[k] for k in apic_keys if getattr(tags[k], "type", None) == 3]
+            best_apic = front_apics[0] if front_apics else tags[apic_keys[0]]
+
+            if not dry_run:
+                for k in apic_keys:
+                    del tags[k]
+                tags.add(best_apic)
+                audio.save(v2_version=4)
+            modified = True
+
+        return {
+            "path": str(path),
+            "format": "mp3",
+            "pictures_before": pics_before,
+            "pictures_after": 1 if pics_before > 1 else pics_before,
+            "legacy_tags_removed": [],
+            "modified": modified,
+        }
+
+    return {
+        "path": str(path),
+        "format": ext.lstrip("."),
+        "pictures_before": 0,
+        "pictures_after": 0,
+        "legacy_tags_removed": [],
+        "modified": False,
     }

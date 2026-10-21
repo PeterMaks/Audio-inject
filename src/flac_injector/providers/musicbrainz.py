@@ -1,11 +1,104 @@
-"""MusicBrainz & AcoustID provider for audio fingerprint and MBID resolution."""
-
 from typing import Any
+
+from rapidfuzz import fuzz
 
 from flac_injector.models import TrackMetadata
 from flac_injector.providers.base import BaseMetadataProvider
 
 ACOUSTID_PUBLIC_KEY = "8XaBELgH"  # Standard open-source client key for AcoustID API
+
+
+def score_release(
+    rel: dict[str, Any],
+    recording_artist: str,
+    existing_albumartist: str | None = None,
+) -> int:
+    """Rank releases deterministically to prevent compilation / Various Artists artwork bleeding.
+
+    Bonuses:
+      +50: Primary type is Album, status is Official, and release artist matches recording artist.
+      +35: Primary type is Single or EP, status is Official, and release artist matches recording artist.
+    Penalties:
+      -100: Secondary types include Compilation, Soundtrack, DJ-mix, Mixtape/Street,
+            OR release artist credit is 'Various Artists'
+            (unless user's existing tag explicitly specifies ALBUMARTIST = Various Artists).
+    """
+    score = 0
+    rg = rel.get("releasegroup") or rel.get("release-group") or {}
+    primary_type = str(
+        rel.get("type")
+        or rg.get("type")
+        or rg.get("primary-type")
+        or ""
+    ).strip().lower()
+
+    status = str(
+        rel.get("status")
+        or rg.get("status")
+        or "official"
+    ).strip().lower()
+
+    raw_sec = rel.get("secondarytypes") or rg.get("secondary-types") or []
+    sec_types = [str(s).strip().lower() for s in raw_sec]
+
+    rel_artists = (
+        rel.get("artists")
+        or rg.get("artists")
+        or rel.get("artist-credit")
+        or rg.get("artist-credit")
+        or []
+    )
+    if isinstance(rel_artists, list):
+        names = []
+        for a in rel_artists:
+            if isinstance(a, dict):
+                names.append(a.get("name") or "")
+            else:
+                names.append(str(a))
+        rel_artist_str = ", ".join(n for n in names if n)
+    else:
+        rel_artist_str = str(rel_artists)
+
+    is_various_artists = (
+        "various artists" in rel_artist_str.lower()
+        or rel_artist_str.strip().lower() == "various"
+    )
+
+    compilation_penalties = {"compilation", "soundtrack", "dj-mix", "mixtape/street"}
+    is_compilation = (
+        any(p in sec_types or p == primary_type for p in compilation_penalties)
+        or is_various_artists
+    )
+
+    user_is_various = bool(
+        existing_albumartist and "various" in existing_albumartist.lower()
+    )
+
+    if is_compilation and not user_is_various:
+        score -= 100
+
+    artist_matches = (
+        fuzz.token_set_ratio(recording_artist.lower(), rel_artist_str.lower()) >= 80
+        if (recording_artist and rel_artist_str)
+        else True
+    )
+
+    if (
+        primary_type == "album"
+        and status == "official"
+        and artist_matches
+        and not is_various_artists
+    ):
+        score += 50
+    elif (
+        primary_type in ("single", "ep")
+        and status == "official"
+        and artist_matches
+        and not is_various_artists
+    ):
+        score += 35
+
+    return score
 
 
 class MusicBrainzProvider(BaseMetadataProvider):
@@ -61,7 +154,13 @@ class MusicBrainzProvider(BaseMetadataProvider):
 
                     releases = recording.get("releases", [])
                     if releases:
-                        for rel in releases:
+                        scored_releases = [
+                            (score_release(rel, artist_name), rel)
+                            for rel in releases
+                        ]
+                        scored_releases.sort(key=lambda x: x[0], reverse=True)
+
+                        for rel_score, rel in scored_releases:
                             album_name = rel.get("title", "Unknown Album")
                             album_id = rel.get("id")
                             date = rel.get("date")
@@ -75,10 +174,10 @@ class MusicBrainzProvider(BaseMetadataProvider):
                                     track_num = str(tracks[0].get("position", "1"))
                                 track_total = str(mediums[0].get("track_count", ""))
 
-                            # Cover art URL from Cover Art Archive
+                            # Cover art URL from Cover Art Archive - never inject compilation art into solo tracks
                             cover_url = (
                                 f"https://coverartarchive.org/release/{album_id}/front-500"
-                                if album_id
+                                if (album_id and rel_score >= 0)
                                 else None
                             )
 
@@ -142,13 +241,23 @@ class MusicBrainzProvider(BaseMetadataProvider):
                 )
 
                 releases = recording.get("releases", [])
-                album_name = (
-                    releases[0].get("title", "Unknown Album")
-                    if releases
-                    else "Unknown Album"
-                )
-                album_id = releases[0].get("id") if releases else None
-                date = releases[0].get("date") if releases else None
+                album_name = "Unknown Album"
+                album_id = None
+                date = None
+                cover_url = None
+
+                if releases:
+                    scored_releases = [
+                        (score_release(r, artist_name), r)
+                        for r in releases
+                    ]
+                    scored_releases.sort(key=lambda x: x[0], reverse=True)
+                    best_score, best_rel = scored_releases[0]
+                    album_name = best_rel.get("title", "Unknown Album")
+                    album_id = best_rel.get("id")
+                    date = best_rel.get("date")
+                    if album_id and best_score >= 0:
+                        cover_url = f"https://coverartarchive.org/release/{album_id}/front-500"
 
                 results.append(
                     TrackMetadata(
@@ -159,6 +268,7 @@ class MusicBrainzProvider(BaseMetadataProvider):
                         isrc=isrc,
                         musicbrainz_trackid=mbid,
                         musicbrainz_albumid=album_id,
+                        cover_art_url=cover_url,
                         confidence_score=0.95,
                         source_provider=self.name,
                     )
@@ -207,13 +317,23 @@ class MusicBrainzProvider(BaseMetadataProvider):
                 )
 
                 releases = rec.get("releases", [])
-                album_name = (
-                    releases[0].get("title", "Unknown Album")
-                    if releases
-                    else "Unknown Album"
-                )
-                album_id = releases[0].get("id") if releases else None
-                date = releases[0].get("date") if releases else None
+                album_name = "Unknown Album"
+                album_id = None
+                date = None
+                cover_url = None
+
+                if releases:
+                    scored_releases = [
+                        (score_release(r, artist_name), r)
+                        for r in releases
+                    ]
+                    scored_releases.sort(key=lambda x: x[0], reverse=True)
+                    best_score, best_rel = scored_releases[0]
+                    album_name = best_rel.get("title", "Unknown Album")
+                    album_id = best_rel.get("id")
+                    date = best_rel.get("date")
+                    if album_id and best_score >= 0:
+                        cover_url = f"https://coverartarchive.org/release/{album_id}/front-500"
 
                 results.append(
                     TrackMetadata(
@@ -223,6 +343,7 @@ class MusicBrainzProvider(BaseMetadataProvider):
                         date=date,
                         musicbrainz_trackid=rec.get("id"),
                         musicbrainz_albumid=album_id,
+                        cover_art_url=cover_url,
                         confidence_score=score,
                         source_provider=self.name,
                     )

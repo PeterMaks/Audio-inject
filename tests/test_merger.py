@@ -162,6 +162,40 @@ def test_aggregate_candidates_below_threshold() -> None:
     assert res is None
 
 
+def test_aggregate_candidates_replaces_unknown_album() -> None:
+    """Test that waterfall replaces 'Unknown Album' with a real album title from other candidates."""
+    mb_cand = TrackMetadata(
+        title="OveR",
+        artist="Miyu Tomita",
+        album="Unknown Album",
+        musicbrainz_trackid="mb-track-999",
+        confidence_score=0.95,
+        source_provider="musicbrainz",
+    )
+    apple_cand = TrackMetadata(
+        title="OveR",
+        artist="Miyu Tomita",
+        album="OveR - Single",
+        cover_art_url="https://example.com/cover3000.jpg",
+        cover_art_width=3000,
+        cover_art_height=3000,
+        confidence_score=0.88,
+        source_provider="apple_itunes",
+    )
+
+    merged = aggregate_candidates(
+        [mb_cand, apple_cand],
+        file_duration=210.0,
+        hints={"title": "OveR", "artist": "Miyu Tomita"},
+        confidence_threshold=0.70,
+    )
+
+    assert merged is not None
+    assert merged.album == "OveR - Single"  # Successfully replaced Unknown Album!
+    assert merged.cover_art_url == "https://example.com/cover3000.jpg"
+
+
+
 def test_parse_filename_metadata_patterns() -> None:
     """Test filename heuristic patterns."""
     # Pattern: "01 - Artist - Title"

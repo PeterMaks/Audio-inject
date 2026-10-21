@@ -55,7 +55,14 @@ class TrackMetadata(BaseModel):
                 comments[key.upper()] = [str(val).strip()]
 
         def add_multi_tag(key: str, vals: list[str]) -> None:
-            clean_vals = [v.strip() for v in vals if v and v.strip()]
+            seen: set[str] = set()
+            clean_vals: list[str] = []
+            for v in vals:
+                if v and str(v).strip():
+                    stripped = str(v).strip()
+                    if stripped.lower() not in seen:
+                        seen.add(stripped.lower())
+                        clean_vals.append(stripped)
             if clean_vals:
                 comments[key.upper()] = clean_vals
 
@@ -139,7 +146,15 @@ class TrackMetadata(BaseModel):
             frames["TDRC"] = str(self.year)
 
         if self.genre:
-            frames["TCON"] = self.genre
+            seen_genres: set[str] = set()
+            clean_genres: list[str] = []
+            for g in self.genre:
+                if g and str(g).strip():
+                    g_strip = str(g).strip()
+                    if g_strip.lower() not in seen_genres:
+                        seen_genres.add(g_strip.lower())
+                        clean_genres.append(g_strip)
+            frames["TCON"] = clean_genres
 
         if self.isrc:
             frames["TSRC"] = str(self.isrc)

@@ -8,7 +8,7 @@ from mutagen.flac import FLAC
 from PIL import Image
 
 from flac_injector.models import TrackMetadata
-from flac_injector.writer import InjectionError, inject_metadata
+from flac_injector.writer import InjectionError, clean_embedded_art, inject_metadata
 
 
 def _create_dummy_image(width: int = 600, height: int = 600, color: str = "blue") -> bytes:
@@ -119,3 +119,70 @@ def test_inject_nonexistent_file(tmp_path: Path) -> None:
     meta = TrackMetadata(title="A", artist="B", album="C")
     with pytest.raises(FileNotFoundError):
         inject_metadata(tmp_path / "missing.flac", meta)
+
+
+def test_inject_deduplicates_tags_and_removes_aliases(untagged_flac: Path) -> None:
+    """Test that duplicate genres are deduplicated and conflicting aliases removed."""
+    # Pre-populate with duplicate genre and legacy alias
+    audio = FLAC(str(untagged_flac))
+    audio["GENRE"] = ["Electronic", "electronic", "Rock"]
+    audio["ALBUM ARTIST"] = ["Old Legacy Artist"]
+    audio["TRACK"] = ["01"]
+    audio.save()
+
+    meta = TrackMetadata(
+        title="Test Track",
+        artist="Daft Punk",
+        album="Discovery",
+        album_artist="Daft Punk",
+        track_number="1",
+        genre=["Electronic", "electronic", "Dance", "DANCE"],
+    )
+
+    inject_metadata(untagged_flac, meta, overwrite_existing=True)
+
+    verified = FLAC(str(untagged_flac))
+    assert verified["GENRE"] == ["Electronic", "Dance"]
+    assert verified["ALBUMARTIST"] == ["Daft Punk"]
+    assert "ALBUM ARTIST" not in verified  # Conflicting legacy alias cleaned
+    assert "TRACK" not in verified         # Conflicting legacy alias cleaned
+
+
+def test_clean_embedded_art_deduplicates_pictures_and_removes_tags(untagged_flac: Path) -> None:
+    """Test that clean_embedded_art strips duplicate picture blocks and Vorbis picture comments."""
+    from mutagen.flac import Picture
+
+    audio = FLAC(str(untagged_flac))
+    img1 = _create_dummy_image(300, 300, "red")
+    img2 = _create_dummy_image(600, 600, "green")
+
+    pic1 = Picture()
+    pic1.type = 0  # Other
+    pic1.data = img1
+    pic1.mime = "image/jpeg"
+
+    pic2 = Picture()
+    pic2.type = 3  # Front cover
+    pic2.data = img2
+    pic2.mime = "image/jpeg"
+
+    audio.add_picture(pic1)
+    audio.add_picture(pic2)
+    audio["METADATA_BLOCK_PICTURE"] = ["base64dummy"]
+    audio["COVERART"] = ["dummy"]
+    audio.save()
+
+    res = clean_embedded_art(untagged_flac, dry_run=False)
+    assert res["pictures_before"] == 2
+    assert res["pictures_after"] == 1
+    assert "METADATA_BLOCK_PICTURE" in res["legacy_tags_removed"]
+    assert "COVERART" in res["legacy_tags_removed"]
+
+    # Verify FLAC only has 1 picture remaining (the front cover)
+    verified = FLAC(str(untagged_flac))
+    assert len(verified.pictures) == 1
+    assert verified.pictures[0].type == 3
+    assert "METADATA_BLOCK_PICTURE" not in verified
+    assert "COVERART" not in verified
+
+

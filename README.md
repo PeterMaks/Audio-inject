@@ -164,6 +164,7 @@ Commands:
   inspect      Inspect detailed tags, properties, and cover art blocks of an audio file.
   fingerprint  Generate Chromaprint fingerprint and parse filename heuristics.
   inject       Scan and inject standardized metadata and cover art into FLAC and MP3 files.
+  clean-art    Deduplicate embedded picture blocks, purge legacy picture tags, and clean loose folder images.
   convert      Convert WAV / uncompressed audio files into FLAC and optionally inject tags.
 ```
 
@@ -285,6 +286,9 @@ flac-meta-injector inject ./music/ --no-convert-wav
 - `--dry-run`: Simulates provider resolution and prints what tags and artwork would be written without altering disk files.
 - `--threshold, -t FLOAT`: Minimum confidence score (default `0.70`) required to execute injection.
 - `--overwrite`: Overwrites existing non-empty tags. By default (`--no-overwrite`), existing non-empty tags are preserved and only missing fields are injected.
+- `--overwrite-art`: Force re-resolves and replaces album art even if the file is already marked complete, without having to wipe text metadata.
+- `--overwrite-unknown`: Selectively overwrites only tracks whose album tag is `"Unknown Album"` or missing, resolving their real album title and unique cover art.
+- `--overwrite-album <name>`: Selectively overwrites tracks matching a specific album tag (e.g. `--overwrite-album "Unknown Album"`).
 - `--convert-wav / --no-convert-wav`: Auto-converts any discovered WAV files to FLAC and injects tags into the resulting FLAC (default: `True`).
 - `--recursive / --no-recursive, -r`: Recurse into subdirectories (default: `True`).
 
@@ -321,7 +325,24 @@ flac-meta-injector convert ./music/ --compression-level 8
 
 ---
 
-### 5. `fingerprint` — Acoustic Fingerprint & Heuristic Parser
+### 5. `clean-art` — Deduplicate & Purge Repeating Album Art
+
+Deduplicates multiple embedded Picture blocks (e.g., duplicate Type 0 "Other" and Type 3 "Front Cover" blocks), purges legacy Vorbis comment picture tags (`METADATA_BLOCK_PICTURE`, `COVERART`), and optionally removes loose folder images (`folder.jpg`, `cover.jpg`) that hijack playback in Windows Explorer and desktop players.
+
+```bash
+# 1. Preview deduplication across files without modifying them
+flac-meta-injector clean-art ./music/ --dry-run
+
+# 2. Clean duplicate embedded picture blocks in a library
+flac-meta-injector clean-art ./music/
+
+# 3. Clean embedded art and remove loose folder.jpg/cover.jpg files
+flac-meta-injector clean-art ./music/ --remove-folder-art
+```
+
+---
+
+### 6. `fingerprint` — Acoustic Fingerprint & Heuristic Parser
 
 Runs `fpcalc` against an audio file, prints its Chromaprint representation, and parses candidate hints from filenames and directory hierarchies.
 

@@ -20,6 +20,7 @@ from typing import Any
 from mutagen.flac import FLAC
 from mutagen.mp3 import MP3
 
+from flac_injector.artwork import ArtworkCache
 from flac_injector.config import get_settings
 from flac_injector.converter import convert_to_flac, find_ffmpeg_binary
 from flac_injector.fingerprint import generate_fingerprint, parse_filename_metadata
@@ -362,6 +363,7 @@ async def run_inject_command(
         DiscogsProvider(settings=settings),
     ]
 
+    art_cache = ArtworkCache()
     items_result: list[dict[str, Any]] = []
     success_count = 0
     skipped_count = 0
@@ -375,6 +377,7 @@ async def run_inject_command(
                 file=str(file_path),
                 percent=file_percent,
                 message=f"Scanning track {idx + 1}/{total_files}...",
+                extra={"cover_art_url": None},
             )
 
             try:
@@ -560,11 +563,26 @@ async def run_inject_command(
                         message="Fetching 3000x3000px master album artwork...",
                         extra={"cover_art_url": best.cover_art_url},
                     )
-                    for p in providers:
-                        art_result = await p.fetch_cover_art(best.cover_art_url)
-                        if art_result:
-                            art_bytes, art_mime = art_result
-                            break
+                    cached = art_cache.get(
+                        best.artist,
+                        best.album,
+                        best.isrc or best.musicbrainz_albumid,
+                    )
+                    if cached:
+                        art_bytes, art_mime = cached
+                    else:
+                        for p in providers:
+                            art_result = await p.fetch_cover_art(best.cover_art_url)
+                            if art_result:
+                                art_bytes, art_mime = art_result
+                                art_cache.set(
+                                    best.artist,
+                                    best.album,
+                                    art_bytes,
+                                    art_mime,
+                                    best.isrc or best.musicbrainz_albumid,
+                                )
+                                break
 
                 # Stage 6: Inject
                 if dry_run:

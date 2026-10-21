@@ -13,7 +13,7 @@ def calculate_confidence(
     hints: dict[str, Any],
 ) -> float:
     """Calculate normalized confidence score (0.0 to 1.0) for a candidate track."""
-    # If the candidate was resolved via acoustic fingerprint, start with authoritative confidence
+    # 1. Authoritative confidence if resolved via fingerprint or ISRC
     if candidate.acoustid_id or candidate.musicbrainz_trackid:
         base_score = max(0.92, candidate.confidence_score)
     elif candidate.isrc:
@@ -24,32 +24,38 @@ def calculate_confidence(
         hint_artist = str(hints.get("artist") or "").strip().lower()
         hint_album = str(hints.get("album") or "").strip().lower()
 
-        title_sim = (
-            fuzz.token_sort_ratio(candidate.title.lower(), hint_title) / 100.0
-            if hint_title
-            else 0.5
-        )
+        if hint_title and hint_artist:
+            title_sim = fuzz.token_sort_ratio(candidate.title.lower(), hint_title) / 100.0
+            artist_sim = fuzz.token_sort_ratio(candidate.artist.lower(), hint_artist) / 100.0
+            album_sim = (
+                fuzz.token_sort_ratio(candidate.album.lower(), hint_album) / 100.0
+                if hint_album
+                else 0.8
+            )
+            base_score = 0.50 * title_sim + 0.35 * artist_sim + 0.15 * album_sim
+        elif hint_title:
+            cand_combined = f"{candidate.artist} {candidate.title}".lower()
+            stem_sim = fuzz.token_set_ratio(cand_combined, hint_title) / 100.0
+            title_sim = fuzz.token_sort_ratio(candidate.title.lower(), hint_title) / 100.0
+            base_score = max(stem_sim, title_sim * 0.9)
+        elif hint_artist:
+            artist_sim = fuzz.token_sort_ratio(candidate.artist.lower(), hint_artist) / 100.0
+            base_score = artist_sim * 0.8
+        else:
+            base_score = (
+                max(0.75, candidate.confidence_score)
+                if candidate.confidence_score > 0
+                else 0.50
+            )
 
-        artist_sim = (
-            fuzz.token_sort_ratio(candidate.artist.lower(), hint_artist) / 100.0
-            if hint_artist
-            else 0.8
-        )
-
-        album_sim = (
-            fuzz.token_sort_ratio(candidate.album.lower(), hint_album) / 100.0
-            if hint_album
-            else 0.8
-        )
-
-        base_score = 0.50 * title_sim + 0.35 * artist_sim + 0.15 * album_sim
-
-    # Check for duration delta penalty if candidate has duration info
+    # Check for duration delta penalty or match bonus if candidate has duration info
     candidate_dur = hints.get("candidate_duration") or hints.get("duration")
     if candidate_dur and file_duration > 0:
         try:
             delta = abs(float(file_duration) - float(candidate_dur))
-            if delta > 3.0:
+            if delta <= 3.0:
+                base_score = min(1.0, base_score + 0.05)
+            else:
                 # Deduct up to 0.40 based on duration delta
                 penalty = min(0.40, (delta - 3.0) / 20.0)
                 base_score -= penalty

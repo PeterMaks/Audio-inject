@@ -152,14 +152,6 @@ export const pickAudioFiles = async (): Promise<string[]> => {
     return [];
   }
   try {
-    const res = await invoke<string[]>("pick_audio_files");
-    if (res && res.length > 0) {
-      return res;
-    }
-  } catch (err) {
-    console.warn("Direct pick_audio_files error, trying plugin fallback:", err);
-  }
-  try {
     const { open } = await import("@tauri-apps/plugin-dialog");
     const selected = await open({
       multiple: true,
@@ -171,13 +163,20 @@ export const pickAudioFiles = async (): Promise<string[]> => {
         },
       ],
     });
-    if (selected) {
-      return Array.isArray(selected) ? selected : [selected];
+    if (!selected) {
+      return [];
     }
+    return Array.isArray(selected) ? selected : [selected];
   } catch (err) {
-    console.error("Plugin dialog open error:", err);
+    console.warn("Plugin dialog open error, fallback to invoke:", err);
+    try {
+      const res = await invoke<string[]>("pick_audio_files");
+      return res || [];
+    } catch (invokeErr) {
+      console.error("invoke pick_audio_files error:", invokeErr);
+      return [];
+    }
   }
-  return [];
 };
 
 export const pickLibraryFolder = async (): Promise<string | null> => {
@@ -185,24 +184,23 @@ export const pickLibraryFolder = async (): Promise<string | null> => {
     return null;
   }
   try {
-    const res = await invoke<string | null>("pick_library_folder");
-    if (res) {
-      return res;
-    }
-  } catch (err) {
-    console.warn("Direct pick_library_folder error, trying plugin fallback:", err);
-  }
-  try {
     const { open } = await import("@tauri-apps/plugin-dialog");
     const selected = await open({
       directory: true,
       multiple: false,
     });
-    if (selected && typeof selected === "string") {
-      return selected;
+    if (!selected) {
+      return null;
     }
+    return typeof selected === "string" ? selected : null;
   } catch (err) {
-    console.error("Plugin dialog open folder error:", err);
+    console.warn("Plugin dialog open folder error, fallback to invoke:", err);
+    try {
+      const res = await invoke<string | null>("pick_library_folder");
+      return res || null;
+    } catch (invokeErr) {
+      console.error("invoke pick_library_folder error:", invokeErr);
+      return null;
+    }
   }
-  return null;
 };

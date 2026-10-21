@@ -182,7 +182,7 @@ export const InspectDrawer: React.FC<InspectDrawerProps> = ({
       {zoomArt && item.cover_art_data_url && (
         <div
           onClick={() => setZoomArt(false)}
-          className="fixed inset-0 z-60 flex items-center justify-center bg-black/85 backdrop-blur-xl p-8"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-xl p-8"
         >
           <div
             onClick={(e) => e.stopPropagation()}

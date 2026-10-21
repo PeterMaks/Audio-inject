@@ -22,10 +22,12 @@ export const DropZone: React.FC<DropZoneProps> = ({
   // Subscribe to native Tauri v2 OS drag-drop events for reliable Windows paths
   useEffect(() => {
     if (!isTauriEnvironment()) return;
+    let isMounted = true;
     let unlisten: (() => void) | undefined;
 
     import("@tauri-apps/api/webviewWindow")
       .then(({ getCurrentWebviewWindow }) => {
+        if (!isMounted) return;
         const win = getCurrentWebviewWindow();
         return win.onDragDropEvent((event) => {
           if (event.payload.type === "over") {
@@ -41,11 +43,16 @@ export const DropZone: React.FC<DropZoneProps> = ({
         });
       })
       .then((fn) => {
-        unlisten = fn;
+        if (!isMounted) {
+          if (fn) fn();
+        } else {
+          unlisten = fn;
+        }
       })
       .catch((err) => console.warn("Tauri drag-drop listener skipped:", err));
 
     return () => {
+      isMounted = false;
       if (unlisten) unlisten();
     };
   }, [onPathsSelected]);
@@ -58,9 +65,12 @@ export const DropZone: React.FC<DropZoneProps> = ({
         return;
       }
     } catch (err) {
-      console.warn("pickAudioFiles fallback:", err);
+      console.warn("pickAudioFiles error:", err);
     }
-    fileInputRef.current?.click();
+    // Only fall back to HTML file input in non-Tauri browser environments
+    if (!isTauriEnvironment()) {
+      fileInputRef.current?.click();
+    }
   };
 
   const handleSelectDirectory = async () => {
@@ -71,9 +81,12 @@ export const DropZone: React.FC<DropZoneProps> = ({
         return;
       }
     } catch (err) {
-      console.warn("pickLibraryFolder fallback:", err);
+      console.warn("pickLibraryFolder error:", err);
     }
-    folderInputRef.current?.click();
+    // Only fall back to HTML folder input in non-Tauri browser environments
+    if (!isTauriEnvironment()) {
+      folderInputRef.current?.click();
+    }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -82,7 +95,6 @@ export const DropZone: React.FC<DropZoneProps> = ({
       for (let i = 0; i < e.target.files.length; i++) {
         const file = e.target.files[i] as any;
         if (file.path) paths.push(file.path);
-        else if (file.name) paths.push(file.name);
       }
       if (paths.length > 0) onPathsSelected(paths);
     }
@@ -98,6 +110,8 @@ export const DropZone: React.FC<DropZoneProps> = ({
       onDrop={(e) => {
         e.preventDefault();
         setIsDragOver(false);
+        // If inside native Tauri, let native onDragDropEvent handle absolute paths
+        if (isTauriEnvironment()) return;
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
           const paths: string[] = [];
           for (let i = 0; i < e.dataTransfer.files.length; i++) {

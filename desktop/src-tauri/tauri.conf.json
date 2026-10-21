@@ -34,6 +34,10 @@
       "msi",
       "nsis"
     ],
+    "publisher": "Audio Systems Engineering",
+    "copyright": "Copyright © 2026 Audio Systems Engineering. MIT License.",
+    "category": "Music",
+    "shortDescription": "Lossless FLAC, MP3 & WAV Metadata and 3000px Artwork Injector",
     "externalBin": [
       "binaries/flac-bridge",
       "binaries/ffmpeg",
@@ -49,6 +53,19 @@
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "installer/nsis-header.bmp",
+        "sidebarImage": "installer/nsis-sidebar.bmp",
+        "installMode": "both",
+        "compression": "lzma",
+        "displayLanguageSelector": false,
+        "installerHooks": "installer/nsis-hooks.nsh"
+      },
+      "wix": {
+        "bannerPath": "installer/wix-banner.bmp",
+        "dialogImagePath": "installer/wix-dialog.bmp"
       }
     }
   }

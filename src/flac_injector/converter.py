@@ -2,6 +2,7 @@
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from mutagen.flac import FLAC, FLACNoHeaderError
@@ -65,12 +66,19 @@ def convert_to_flac(
     ]
 
     try:
+        extra_kwargs: dict = {}
+        if sys.platform == "win32":
+            extra_kwargs["creationflags"] = getattr(
+                subprocess, "CREATE_NO_WINDOW", 0x08000000
+            )
+
         proc = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             check=False,
             timeout=120,
+            **extra_kwargs,
         )
         if proc.returncode != 0:
             err_msg = proc.stderr.strip()[:200]

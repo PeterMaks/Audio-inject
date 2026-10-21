@@ -4,6 +4,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -44,12 +45,19 @@ def generate_fingerprint(
     if fpcalc_bin:
         try:
             cmd = [str(fpcalc_bin), "-json", str(path)]
+            extra_kwargs: dict[str, Any] = {}
+            if sys.platform == "win32":
+                extra_kwargs["creationflags"] = getattr(
+                    subprocess, "CREATE_NO_WINDOW", 0x08000000
+                )
+
             proc = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 check=False,
                 timeout=30,
+                **extra_kwargs,
             )
             if proc.returncode == 0:
                 data = json.loads(proc.stdout)

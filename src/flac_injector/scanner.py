@@ -85,7 +85,7 @@ def _inspect_flac(path: Path) -> ScanResult:
             "size_bytes": len(getattr(target_pic, "data", b"")),
         }
 
-    is_incomplete = bool(missing_fields) or not has_cover_art
+    is_incomplete = any(tag in missing_fields for tag in CORE_TAGS) or not has_cover_art
 
     return ScanResult(
         path=path,
@@ -198,7 +198,7 @@ def _inspect_mp3(path: Path) -> ScanResult:
                         existing_tags[canonical_name] = vals
 
     missing_fields = _detect_missing_fields(existing_tags)
-    is_incomplete = bool(missing_fields) or not has_cover_art
+    is_incomplete = any(tag in missing_fields for tag in CORE_TAGS) or not has_cover_art
 
     return ScanResult(
         path=path,

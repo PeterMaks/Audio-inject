@@ -67,6 +67,7 @@ export const InjectView: React.FC<InjectViewProps> = ({
   const [dryRun, setDryRun] = useState<boolean>(false);
   const [overwrite, setOverwrite] = useState<boolean>(false);
   const [convertWav, setConvertWav] = useState<boolean>(true);
+  const [onlyIncomplete, setOnlyIncomplete] = useState<boolean>(true);
 
   const getStageNodeIndex = (stage?: string): number => {
     if (!stage) return -1;
@@ -74,9 +75,11 @@ export const InjectView: React.FC<InjectViewProps> = ({
       case "fingerprint":
         return 0;
       case "acoustid":
+      case "musicbrainz":
         return 1;
       case "itunes":
       case "art":
+      case "cover_art":
         return 2;
       case "deezer":
         return 3;
@@ -85,6 +88,7 @@ export const InjectView: React.FC<InjectViewProps> = ({
       case "merge":
       case "write":
       case "done":
+      case "finished":
         return 5;
       default:
         return 0;
@@ -101,9 +105,13 @@ export const InjectView: React.FC<InjectViewProps> = ({
     { title: "Spotify", sub: "Canonical Genres", icon: Disc },
   ];
 
+  const targetItems = onlyIncomplete
+    ? items.filter((i) => i.is_incomplete)
+    : items;
+
   const handleExecute = () => {
     onStartInject({
-      paths: items.map((i) => i.path),
+      paths: targetItems.map((i) => i.path),
       threshold,
       dryRun,
       overwrite,
@@ -203,6 +211,12 @@ export const InjectView: React.FC<InjectViewProps> = ({
         {/* Apple Capsule Switches Card */}
         <div className="p-5 rounded-2xl glass-panel divide-y divide-white/[0.06]">
           <AppleToggle
+            checked={onlyIncomplete}
+            onChange={setOnlyIncomplete}
+            label="Incomplete Tracks Only"
+            description="Skip tracks already fully tagged with verified 3000px cover art"
+          />
+          <AppleToggle
             checked={dryRun}
             onChange={setDryRun}
             label="Dry-Run Simulation"
@@ -247,13 +261,13 @@ export const InjectView: React.FC<InjectViewProps> = ({
       <div className="flex items-center justify-between p-4 rounded-2xl glass-panel">
         <div className="text-xs text-white/60 tabular-nums">
           Ready to process{" "}
-          <span className="text-white font-semibold">{items.length}</span> audio
-          track(s)
+          <span className="text-white font-semibold">{targetItems.length}</span> of{" "}
+          <span className="text-white/80">{items.length}</span> audio track(s)
         </div>
 
         <button
           onClick={handleExecute}
-          disabled={isInjecting || items.length === 0}
+          disabled={isInjecting || targetItems.length === 0}
           className="apple-btn-primary flex items-center space-x-2 px-6 py-2.5 rounded-xl text-white text-xs font-semibold disabled:opacity-40"
         >
           <Sparkles className="w-4 h-4" />
@@ -261,8 +275,8 @@ export const InjectView: React.FC<InjectViewProps> = ({
             {isInjecting
               ? "Running Waterfall…"
               : dryRun
-                ? `Simulate Injection (${items.length})`
-                : `Inject Metadata (${items.length})`}
+                ? `Simulate Injection (${targetItems.length})`
+                : `Inject Metadata (${targetItems.length})`}
           </span>
         </button>
       </div>

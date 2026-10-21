@@ -38,4 +38,10 @@ def get_settings(env_file: Path | str | None = None) -> Settings:
     """Load settings optionally specifying a custom .env file path."""
     if env_file:
         return Settings(_env_file=env_file)
+    cwd_env = Path(".env")
+    if cwd_env.is_file():
+        return Settings(_env_file=cwd_env)
+    repo_env = Path(__file__).resolve().parents[2] / ".env"
+    if repo_env.is_file():
+        return Settings(_env_file=repo_env)
     return Settings()

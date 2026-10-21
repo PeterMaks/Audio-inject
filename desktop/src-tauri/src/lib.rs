@@ -11,6 +11,22 @@ use window_vibrancy::{apply_acrylic, apply_mica};
 
 /// Helper to locate the root workspace directory containing pyproject.toml
 fn find_workspace_root() -> PathBuf {
+    // 1. Check CARGO_MANIFEST_DIR ancestors (active in `cargo` / `tauri dev`)
+    if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
+        let mut curr = PathBuf::from(manifest);
+        for _ in 0..5 {
+            if curr.join("pyproject.toml").exists() && curr.join("src").exists() {
+                return curr;
+            }
+            if let Some(parent) = curr.parent() {
+                curr = parent.to_path_buf();
+            } else {
+                break;
+            }
+        }
+    }
+
+    // 2. Check current working directory ancestors
     let mut current = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     for _ in 0..5 {
         if current.join("pyproject.toml").exists() && current.join("src").exists() {
@@ -39,6 +55,16 @@ fn find_python_executable(root: &Path) -> PathBuf {
     #[cfg(not(target_os = "windows"))]
     {
         let venv_py = root.join(".venv").join("bin").join("python");
+        if venv_py.exists() {
+            return venv_py;
+        }
+    }
+
+    if let Ok(venv_env) = std::env::var("VIRTUAL_ENV") {
+        #[cfg(target_os = "windows")]
+        let venv_py = PathBuf::from(&venv_env).join("Scripts").join("python.exe");
+        #[cfg(not(target_os = "windows"))]
+        let venv_py = PathBuf::from(&venv_env).join("bin").join("python");
         if venv_py.exists() {
             return venv_py;
         }
@@ -84,6 +110,8 @@ fn resolve_bridge_command(action: &str) -> Result<Command, String> {
     let mut cmd = Command::new(python);
     cmd.current_dir(&root);
     cmd.env("PYTHONPATH", root.join("src"));
+    cmd.env("PYTHONIOENCODING", "utf-8");
+    cmd.env("PYTHONUTF8", "1");
     cmd.arg("-m")
         .arg("flac_injector.bridge")
         .arg(action)
@@ -266,7 +294,7 @@ async fn run_convert(
     output_dir: Option<String>,
     inject: bool,
     delete_original: bool,
-    compression_level: u8,
+    compression_level: u32,
     threshold: f64,
     dry_run: bool,
 ) -> Result<Value, String> {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Plus, FolderPlus, CheckCircle2, AlertCircle, X } from "lucide-react";
+import { Plus, FolderPlus, CheckCircle2, AlertCircle, X, RefreshCw, Trash2 } from "lucide-react";
 import { Titlebar } from "./components/Titlebar";
 import { Sidebar, ActiveTab } from "./components/Sidebar";
 import { DropZone } from "./components/DropZone";
@@ -76,53 +76,8 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Handle Drag & Drop or File Selection
-  const handlePathsSelected = async (paths: string[]) => {
-    if (!paths || paths.length === 0) return;
-    setIsScanning(true);
-    try {
-      const res = await runScan(paths, true, false);
-      setScannedItems(res.items);
-      setActiveTab("scan");
-
-      showToast(
-        "success",
-        "Library Scanned",
-        `Loaded ${res.items.length} audio track(s) (${res.incomplete} incomplete).`
-      );
-
-      const firstWithArt = res.items.find((i) => i.has_cover_art);
-      if (firstWithArt) {
-        runInspect(firstWithArt.path, true).then((full) => {
-          if (full.cover_art_data_url) {
-            setAmbientArtUrl(full.cover_art_data_url);
-          }
-        });
-      }
-    } catch (e) {
-      console.error("Scanning failed:", e);
-      showToast("error", "Scan Failed", String(e));
-    } finally {
-      setIsScanning(false);
-    }
-  };
-
-  const handleQuickAddFiles = async () => {
-    const files = await pickAudioFiles();
-    if (files.length > 0) {
-      await handlePathsSelected(files);
-    }
-  };
-
-  const handleQuickAddFolder = async () => {
-    const folder = await pickLibraryFolder();
-    if (folder) {
-      await handlePathsSelected([folder]);
-    }
-  };
-
   // Inspect track in detail
-  const handleInspect = async (item: ScanItem) => {
+  const handleInspect = useCallback(async (item: ScanItem) => {
     try {
       const full = await runInspect(item.path, true);
       setInspectedItem(full);
@@ -133,30 +88,85 @@ export const App: React.FC = () => {
       console.error("Inspect failed:", e);
       setInspectedItem(item);
     }
+  }, []);
+
+  // Auto-inspect first track when clicking Track Inspector tab if none selected
+  useEffect(() => {
+    if (activeTab === "inspect" && !inspectedItem && scannedItems.length > 0) {
+      handleInspect(scannedItems[0]);
+    }
+  }, [activeTab, inspectedItem, scannedItems, handleInspect]);
+
+  // Handle Drag & Drop or File Selection with merging support
+  const handlePathsSelected = useCallback(
+    async (paths: string[], append: boolean = false) => {
+      if (!paths || paths.length === 0) return;
+      setIsScanning(true);
+      try {
+        const res = await runScan(paths, true, false);
+        setScannedItems((prev) => {
+          if (!append || prev.length === 0) {
+            return res.items;
+          }
+          const existingMap = new Map(prev.map((item) => [item.path, item]));
+          for (const item of res.items) {
+            existingMap.set(item.path, item);
+          }
+          return Array.from(existingMap.values());
+        });
+        setActiveTab("scan");
+
+        showToast(
+          "success",
+          "Library Scanned",
+          `Loaded ${res.items.length} audio track(s) (${res.incomplete} incomplete).`
+        );
+
+        const firstWithArt = res.items.find((i) => i.has_cover_art);
+        if (firstWithArt) {
+          runInspect(firstWithArt.path, true).then((full) => {
+            if (full.cover_art_data_url) {
+              setAmbientArtUrl(full.cover_art_data_url);
+            }
+          });
+        }
+      } catch (e) {
+        console.error("Scanning failed:", e);
+        showToast("error", "Scan Failed", String(e));
+      } finally {
+        setIsScanning(false);
+      }
+    },
+    [showToast]
+  );
+
+  const handleQuickAddFiles = async () => {
+    const files = await pickAudioFiles();
+    if (files.length > 0) {
+      await handlePathsSelected(files, true);
+    }
   };
 
-  // Single file injection
-  const handleInjectSingle = async (item: ScanItem) => {
-    setActiveTab("inject");
-    await handleStartInject({
-      paths: [item.path],
-      threshold: 0.7,
-      dryRun: false,
-      overwrite: false,
-      convertWav: true,
-    });
+  const handleQuickAddFolder = async () => {
+    const folder = await pickLibraryFolder();
+    if (folder) {
+      await handlePathsSelected([folder], true);
+    }
   };
 
-  // Batch injection
-  const handleInjectBatch = (items: ScanItem[]) => {
-    setActiveTab("inject");
-    handleStartInject({
-      paths: items.map((i) => i.path),
-      threshold: 0.7,
-      dryRun: false,
-      overwrite: false,
-      convertWav: true,
-    });
+  const handleRescan = async () => {
+    if (scannedItems.length === 0) return;
+    const paths = scannedItems.map((i) => i.path);
+    await handlePathsSelected(paths, false);
+  };
+
+  const handleClearLibrary = () => {
+    setScannedItems([]);
+    setInspectedItem(null);
+    setAmbientArtUrl(null);
+    setInjectResults([]);
+    setConvertResults([]);
+    showToast("info", "Library Cleared", "Removed loaded tracks from session.");
   };
 
   // Start Waterfall Inject
@@ -186,8 +196,19 @@ export const App: React.FC = () => {
       );
 
       if (scannedItems.length > 0) {
+        // Map converted WAV to new FLAC paths
+        const convertedMap = new Map<string, string>();
+        for (const item of res.items) {
+          if (item.file && item.file.toLowerCase().endsWith(".flac")) {
+            const oldWav = item.file.replace(/\.flac$/i, ".wav");
+            convertedMap.set(oldWav, item.file);
+          }
+        }
+        const updatedPaths = scannedItems.map(
+          (i) => convertedMap.get(i.path) || i.path
+        );
         const refreshed = await runScan(
-          scannedItems.map((i) => i.path),
+          Array.from(new Set(updatedPaths)),
           false,
           false
         );
@@ -199,6 +220,30 @@ export const App: React.FC = () => {
     } finally {
       setIsInjecting(false);
     }
+  };
+
+  // Single file injection
+  const handleInjectSingle = async (item: ScanItem) => {
+    setActiveTab("inject");
+    await handleStartInject({
+      paths: [item.path],
+      threshold: 0.7,
+      dryRun: false,
+      overwrite: false,
+      convertWav: true,
+    });
+  };
+
+  // Batch injection
+  const handleInjectBatch = (items: ScanItem[]) => {
+    setActiveTab("inject");
+    handleStartInject({
+      paths: items.map((i) => i.path),
+      threshold: 0.7,
+      dryRun: false,
+      overwrite: false,
+      convertWav: true,
+    });
   };
 
   // Start WAV conversion
@@ -224,8 +269,17 @@ export const App: React.FC = () => {
       );
 
       if (scannedItems.length > 0) {
+        const conversionMap = new Map<string, string>();
+        for (const c of res.items) {
+          if (c.source && c.destination) {
+            conversionMap.set(c.source, c.destination);
+          }
+        }
+        const updatedPaths = scannedItems.map(
+          (item) => conversionMap.get(item.path) || item.path
+        );
         const refreshed = await runScan(
-          scannedItems.map((i) => i.path),
+          Array.from(new Set(updatedPaths)),
           false,
           false
         );
@@ -237,6 +291,20 @@ export const App: React.FC = () => {
     } finally {
       setIsConverting(false);
     }
+  };
+
+  // Single file WAV convert
+  const handleConvertSingle = (item: ScanItem) => {
+    setActiveTab("convert");
+    handleStartConvert({
+      paths: [item.path],
+      outputDir: null,
+      inject: true,
+      deleteOriginal: false,
+      compressionLevel: 8,
+      threshold: 0.7,
+      dryRun: false,
+    });
   };
 
   const incompleteCount = scannedItems.filter((i) => i.is_incomplete).length;
@@ -326,6 +394,19 @@ export const App: React.FC = () => {
             {scannedItems.length > 0 && (
               <div className="flex items-center space-x-2">
                 <button
+                  onClick={handleRescan}
+                  disabled={isScanning}
+                  title="Rescan current library tracks"
+                  className="apple-btn-secondary flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/90"
+                >
+                  <RefreshCw
+                    className={`w-3.5 h-3.5 text-[#30D158] ${
+                      isScanning ? "animate-spin" : ""
+                    }`}
+                  />
+                  <span>Rescan</span>
+                </button>
+                <button
                   onClick={handleQuickAddFiles}
                   disabled={isScanning}
                   className="apple-btn-secondary flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/90"
@@ -340,6 +421,14 @@ export const App: React.FC = () => {
                 >
                   <FolderPlus className="w-3.5 h-3.5 text-[#0A84FF]" />
                   <span>Add Folder</span>
+                </button>
+                <button
+                  onClick={handleClearLibrary}
+                  disabled={isScanning}
+                  title="Clear library list"
+                  className="apple-btn-secondary flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-white/70 hover:text-[#FF453A]"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
@@ -361,7 +450,7 @@ export const App: React.FC = () => {
                   onInspect={handleInspect}
                   onInjectSingle={handleInjectSingle}
                   onInjectBatch={handleInjectBatch}
-                  onConvertSingle={() => setActiveTab("convert")}
+                  onConvertSingle={handleConvertSingle}
                 />
               )}
 
@@ -383,7 +472,7 @@ export const App: React.FC = () => {
                       onInspect={handleInspect}
                       onInjectSingle={handleInjectSingle}
                       onInjectBatch={handleInjectBatch}
-                      onConvertSingle={() => setActiveTab("convert")}
+                      onConvertSingle={handleConvertSingle}
                     />
                   ) : (
                     <div className="flex-1 flex items-center justify-center max-w-xl mx-auto w-full">

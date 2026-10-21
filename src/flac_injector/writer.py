@@ -299,7 +299,7 @@ def _inject_mp3(
             raise InjectionError(f"Failed to embed APIC cover art into {path}: {e}") from e
 
     try:
-        audio.save()
+        audio.save(v2_version=4)
     except Exception as e:
         raise InjectionError(f"Failed to save MP3 ID3 tags to disk: {path} ({e})") from e
 

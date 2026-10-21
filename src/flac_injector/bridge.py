@@ -9,11 +9,46 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import logging
 import os
 import shutil
 import sys
+import warnings
 from pathlib import Path
 from typing import Any
+
+from mutagen.flac import FLAC
+from mutagen.mp3 import MP3
+
+from flac_injector.config import get_settings
+from flac_injector.converter import convert_to_flac, find_ffmpeg_binary
+from flac_injector.fingerprint import generate_fingerprint, parse_filename_metadata
+from flac_injector.merger import aggregate_candidates
+from flac_injector.models import ScanResult, TrackMetadata
+from flac_injector.providers.apple_itunes import AppleITunesProvider
+from flac_injector.providers.deezer import DeezerProvider
+from flac_injector.providers.musicbrainz import MusicBrainzProvider
+from flac_injector.providers.spotify import SpotifyProvider
+from flac_injector.scanner import inspect_audio, scan_path
+from flac_injector.writer import inject_metadata
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+if "pytest" not in sys.modules:
+    logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+    for _h in logging.root.handlers[:]:
+        if hasattr(_h, "setStream"):
+            _h.setStream(sys.stderr)
+warnings.filterwarnings("ignore")
 
 
 def bootstrap_bundled_binaries() -> None:
@@ -36,31 +71,6 @@ def bootstrap_bundled_binaries() -> None:
 
 
 bootstrap_bundled_binaries()
-
-
-from mutagen.flac import FLAC
-from mutagen.mp3 import MP3
-
-from flac_injector.config import get_settings
-from flac_injector.converter import convert_to_flac, find_ffmpeg_binary
-from flac_injector.fingerprint import generate_fingerprint, parse_filename_metadata
-from flac_injector.merger import aggregate_candidates
-from flac_injector.models import ScanResult, TrackMetadata
-from flac_injector.providers.apple_itunes import AppleITunesProvider
-from flac_injector.providers.deezer import DeezerProvider
-from flac_injector.providers.musicbrainz import MusicBrainzProvider
-from flac_injector.providers.spotify import SpotifyProvider
-from flac_injector.scanner import inspect_audio, scan_path
-from flac_injector.writer import inject_metadata
-
-if sys.platform == "win32":
-    try:
-        if sys.stdout and hasattr(sys.stdout, "reconfigure"):
-            sys.stdout.reconfigure(encoding="utf-8")
-        if sys.stderr and hasattr(sys.stderr, "reconfigure"):
-            sys.stderr.reconfigure(encoding="utf-8")
-    except Exception:
-        pass
 
 
 def emit_event(event: dict[str, Any]) -> None:
@@ -715,7 +725,7 @@ async def run_convert_command(
 
                 if inject_tags and providers:
                     emit_progress(
-                        stage="inject",
+                        stage="convert",
                         file=str(converted_path),
                         percent=file_percent + (100.0 / total_files) * 0.5,
                         message=f"Resolving metadata for {converted_path.name}...",
@@ -756,9 +766,22 @@ async def run_convert_command(
     }
 
 
+def get_env_file_path() -> Path:
+    """Resolve .env location deterministically: cwd if present, otherwise repo root."""
+    cwd_env = Path(".env")
+    if cwd_env.is_file():
+        return cwd_env
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / ".env"
+    repo_env = Path(__file__).resolve().parents[2] / ".env"
+    if repo_env.is_file():
+        return repo_env
+    return cwd_env
+
+
 def get_env_settings() -> dict[str, Any]:
     """Read .env configuration file and return raw and active settings."""
-    env_path = Path(".env")
+    env_path = get_env_file_path()
     raw_lines: dict[str, str] = {}
     if env_path.is_file():
         for line in env_path.read_text(encoding="utf-8").splitlines():
@@ -769,7 +792,7 @@ def get_env_settings() -> dict[str, Any]:
                 k, v = line.split("=", 1)
                 raw_lines[k.strip()] = v.strip().strip("'\"")
 
-    settings = get_settings()
+    settings = get_settings(env_file=env_path)
     return {
         "ACOUSTID_API_KEY": raw_lines.get(
             "ACOUSTID_API_KEY", settings.acoustid_api_key or ""
@@ -801,7 +824,7 @@ def get_env_settings() -> dict[str, Any]:
 
 def save_env_settings(updates: dict[str, Any]) -> dict[str, Any]:
     """Save or update .env key-value pairs while preserving formatting."""
-    env_path = Path(".env")
+    env_path = get_env_file_path()
     lines: list[str] = []
     if env_path.is_file():
         lines = env_path.read_text(encoding="utf-8").splitlines()
@@ -826,6 +849,8 @@ def save_env_settings(updates: dict[str, Any]) -> dict[str, Any]:
             new_lines.append(f"{k}={v}")
 
     env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    for k, v in updates.items():
+        os.environ[k] = str(v)
     return get_env_settings()
 
 

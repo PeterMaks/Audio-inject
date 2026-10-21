@@ -32,7 +32,9 @@ export const ConvertView: React.FC<ConvertViewProps> = ({
   const [deleteOriginal, setDeleteOriginal] = useState<boolean>(false);
   const [dryRun, setDryRun] = useState<boolean>(false);
 
-  const wavFiles = items.filter((i) => i.audio_format.toLowerCase() === "wav");
+  const wavFiles = items.filter((i) =>
+    ["wav", "wave", "aiff", "aif"].includes(i.audio_format.toLowerCase())
+  );
 
   const handleSelectOutputFolder = async () => {
     try {
@@ -165,6 +167,26 @@ export const ConvertView: React.FC<ConvertViewProps> = ({
           </div>
         ))}
       </div>
+
+      {/* Live Progress Bar */}
+      {isConverting && (
+        <div className="p-4 rounded-2xl glass-panel space-y-2.5 border border-[#0A84FF]/40">
+          <div className="flex justify-between text-xs tabular-nums">
+            <span className="text-white/90 font-medium truncate max-w-lg">
+              {currentProgress?.message || "Encoding audio files to lossless FLAC…"}
+            </span>
+            <span className="text-[#0A84FF] font-semibold">
+              {currentProgress?.percent?.toFixed(0) || 0}%
+            </span>
+          </div>
+          <div className="w-full h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
+            <div
+              className="h-full bg-[#0A84FF] transition-all duration-300 rounded-full"
+              style={{ width: `${currentProgress?.percent || 0}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Action Bar */}
       <div className="flex items-center justify-between p-4 rounded-2xl glass-panel">

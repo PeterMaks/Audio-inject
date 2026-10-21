@@ -8,6 +8,7 @@ import pytest
 from flac_injector.config import Settings
 from flac_injector.providers.apple_itunes import AppleITunesProvider
 from flac_injector.providers.deezer import DeezerProvider
+from flac_injector.providers.discogs import DiscogsProvider
 from flac_injector.providers.musicbrainz import MusicBrainzProvider
 from flac_injector.providers.spotify import SpotifyProvider
 
@@ -19,6 +20,7 @@ def mock_settings() -> Settings:
         ACOUSTID_API_KEY="test_acoustid_key",
         SPOTIFY_CLIENT_ID="test_spot_id",
         SPOTIFY_CLIENT_SECRET="test_spot_secret",
+        DISCOGS_TOKEN="test_discogs_token",
         RATE_LIMIT_DELAY=0.0,
     )
 
@@ -231,3 +233,94 @@ async def test_base_fetch_cover_art(mock_settings: Settings) -> None:
     assert data == mock_image_bytes
     assert mime == "image/jpeg"
     await provider.close()
+
+
+@pytest.mark.asyncio
+async def test_discogs_lookup_by_query_with_release_detail(mock_settings: Settings) -> None:
+    """Test Discogs query search with full release details and artist sanitization."""
+    provider = DiscogsProvider(settings=mock_settings, rate_limit_delay=0.0)
+
+    mock_search_payload = {
+        "results": [
+            {
+                "id": 999,
+                "title": "Aphex Twin - Selected Ambient Works 85-92",
+                "year": "1992",
+            }
+        ]
+    }
+    mock_detail_payload = {
+        "id": 999,
+        "title": "Selected Ambient Works 85-92",
+        "artists": [{"name": "Aphex Twin (2)"}],
+        "year": 1992,
+        "released": "1992-02-12",
+        "genres": ["Electronic"],
+        "styles": ["Ambient", "Techno"],
+        "labels": [{"name": "Apollo"}],
+        "images": [
+            {
+                "type": "primary",
+                "uri": "https://i.discogs.com/saw8592.jpg",
+                "width": 600,
+                "height": 600,
+            }
+        ],
+        "identifiers": [
+            {"type": "Barcode", "value": "5413356611927"}
+        ],
+        "tracklist": [
+            {
+                "position": "1",
+                "title": "Xtal",
+                "duration": "4:54",
+                "extraartists": [
+                    {"name": "Richard D. James (2)", "role": "Written-By"}
+                ],
+            },
+            {
+                "position": "2",
+                "title": "Tha",
+                "duration": "9:06",
+            },
+        ],
+    }
+
+    async def mock_request(method: str, url: str, **kwargs):
+        if "releases/999" in url:
+            return httpx.Response(200, json=mock_detail_payload)
+        return httpx.Response(200, json=mock_search_payload)
+
+    with patch.object(provider, "request", side_effect=mock_request):
+        results = await provider.lookup_by_query("Xtal", "Aphex Twin")
+
+    assert len(results) == 1
+    track = results[0]
+    assert track.title == "Xtal"
+    assert track.artist == "Aphex Twin"  # Sanitized (2)
+    assert track.album == "Selected Ambient Works 85-92"
+    assert track.track_number == "1"
+    assert track.track_total == "2"
+    assert track.composer == "Richard D. James"  # Sanitized (2)
+    assert track.genre == ["Electronic", "Ambient", "Techno"]
+    assert track.barcode == "5413356611927"
+    assert track.label == "Apollo"
+    assert track.cover_art_url == "https://i.discogs.com/saw8592.jpg"
+    assert track.extra_tags["DISCOGS_RELEASE_ID"] == "999"
+    await provider.close()
+
+
+@pytest.mark.asyncio
+async def test_discogs_unconfigured_token() -> None:
+    """Test that Discogs returns empty list when no token is configured."""
+    empty_settings = Settings(DISCOGS_TOKEN=None)
+    provider = DiscogsProvider(settings=empty_settings, rate_limit_delay=0.0)
+
+    results = await provider.lookup_by_query("Xtal")
+    assert results == []
+    results_isrc = await provider.lookup_by_isrc("USQX91300105")
+    assert results_isrc == []
+    results_fp = await provider.lookup_by_fingerprint("dummy", 100.0)
+    assert results_fp == []
+    await provider.close()
+

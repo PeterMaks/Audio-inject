@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     acoustid_api_key: str | None = Field(default=None, alias="ACOUSTID_API_KEY")
     spotify_client_id: str | None = Field(default=None, alias="SPOTIFY_CLIENT_ID")
     spotify_client_secret: str | None = Field(default=None, alias="SPOTIFY_CLIENT_SECRET")
+    discogs_token: str | None = Field(default=None, alias="DISCOGS_TOKEN")
 
     # MusicBrainz compliant User-Agent
     musicbrainz_user_agent: str = Field(

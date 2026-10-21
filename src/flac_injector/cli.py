@@ -18,6 +18,7 @@ from flac_injector.merger import aggregate_candidates
 from flac_injector.models import TrackMetadata
 from flac_injector.providers.apple_itunes import AppleITunesProvider
 from flac_injector.providers.deezer import DeezerProvider
+from flac_injector.providers.discogs import DiscogsProvider
 from flac_injector.providers.musicbrainz import MusicBrainzProvider
 from flac_injector.providers.spotify import SpotifyProvider
 from flac_injector.scanner import inspect_audio, scan_path
@@ -277,6 +278,7 @@ async def _resolve_and_inject_track(
     apple_provider: AppleITunesProvider = providers[1]
     deezer_provider: DeezerProvider = providers[2]
     spotify_provider: SpotifyProvider = providers[3]
+    discogs_provider: DiscogsProvider | None = providers[4] if len(providers) > 4 else None
 
     # Step 1: Acoustic Fingerprint Lookup
     if fp and fp.fingerprint:
@@ -296,6 +298,8 @@ async def _resolve_and_inject_track(
             deezer_provider.lookup_by_isrc(isrc),
             spotify_provider.lookup_by_isrc(isrc),
         ]
+        if discogs_provider:
+            tasks.append(discogs_provider.lookup_by_isrc(isrc))
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for r in results:
             if isinstance(r, list):
@@ -312,6 +316,8 @@ async def _resolve_and_inject_track(
             spotify_provider.lookup_by_query(title, artist),
             mb_provider.lookup_by_query(title, artist, album),
         ]
+        if discogs_provider:
+            tasks.append(discogs_provider.lookup_by_query(title, artist, album))
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for r in results:
             if isinstance(r, list):
@@ -431,6 +437,7 @@ def inject(
             AppleITunesProvider(settings=settings),
             DeezerProvider(settings=settings),
             SpotifyProvider(settings=settings),
+            DiscogsProvider(settings=settings),
         ]
         try:
             for file_path in audio_files:
@@ -522,6 +529,7 @@ def convert(
             AppleITunesProvider(settings=settings),
             DeezerProvider(settings=settings),
             SpotifyProvider(settings=settings),
+            DiscogsProvider(settings=settings),
         ] if inject_tags else []
 
         try:

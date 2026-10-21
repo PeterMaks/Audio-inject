@@ -18,6 +18,7 @@ A production-grade CLI and Python library that losslessly scans local audio file
   - **Apple iTunes Search API**: Zero-auth public search dynamically upgraded from 100x100 thumbnails to **3000x3000px** uncompressed master artwork directly from Apple's CDN.
   - **Deezer Public API**: Zero-auth endpoint providing exact track **BPM (tempo)**, explicit advisory ratings, and ISRC validation.
   - **Spotify Web API**: Enriched streaming metadata via Client Credentials flow.
+  - **Discogs Database API**: Exhaustive physical and niche release catalog with styles, compositions, label catalog numbers, and detailed credits.
 - **Fuzzy Confidence Scoring**: Uses RapidFuzz token sorting and duration discrepancy penalties ($| \Delta\text{duration} | > 3\text{s}$) to guard against false-positive tag injection.
 - **Rich Interactive CLI**: Built with `typer` and `rich`, featuring visual scan tables with audio format indicators, before/after inspection, dry-run simulation, and immediate post-write read-back verification.
 
@@ -49,14 +50,17 @@ graph TD
     N --> P[Apple iTunes API: 3000x3000px Art & Meta]
     N --> Q[Deezer API: BPM, Explicit, ISRC Meta]
     N --> R[Spotify API: Canonical Tags & Genres]
+    N --> D2[Discogs API: Physical Releases & Styles]
     
     O --> P
     O --> Q
     O --> R
+    O --> D2
     
     P --> S[Waterfall Merger & Fuzzy Confidence Scorer]
     Q --> S
     R --> S
+    D2 --> S
     K --> S
     
     S --> T{Confidence >= Threshold?}
@@ -137,13 +141,14 @@ cp .env.example .env
 | `ACOUSTID_API_KEY` | *(Built-in open key)* | Your AcoustID API key (register for free at [acoustid.org](https://acoustid.org/)). |
 | `SPOTIFY_CLIENT_ID` | `None` *(Optional)* | Spotify Developer Client ID for enhanced streaming metadata. |
 | `SPOTIFY_CLIENT_SECRET` | `None` *(Optional)* | Spotify Developer Client Secret. |
+| `DISCOGS_TOKEN` | `None` *(Optional)* | Discogs Personal Access Token (generate at [discogs.com/settings/developers](https://www.discogs.com/settings/developers)). |
 | `MUSICBRAINZ_USER_AGENT` | `flac-meta-injector/...` | User-Agent header compliant with MusicBrainz terms. |
-| `RATE_LIMIT_DELAY` | `1.0` | Minimum delay in seconds between calls to polite endpoints (MusicBrainz). |
+| `RATE_LIMIT_DELAY` | `1.0` | Minimum delay in seconds between calls to polite endpoints (MusicBrainz / Discogs). |
 | `COVER_ART_MIN_RESOLUTION` | `600` | Minimum acceptable cover art width/height in pixels. |
 | `CONFIDENCE_THRESHOLD` | `0.70` | Minimum composite confidence score ($0.0 - 1.0$) to auto-inject tags. |
 | `FPCALC_PATH` | `fpcalc` | Path or command name for the `fpcalc` executable. |
 
-> **Note:** Both **Apple iTunes** and **Deezer** operate without any API keys or credentials. If Spotify or AcoustID keys are omitted, the tool automatically uses public endpoints and filename heuristics.
+> **Note:** Both **Apple iTunes** and **Deezer** operate without any API keys or credentials. If Spotify, Discogs, or AcoustID keys are omitted, the tool automatically uses public endpoints and filename heuristics.
 
 ---
 

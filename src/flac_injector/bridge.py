@@ -27,6 +27,7 @@ from flac_injector.merger import aggregate_candidates
 from flac_injector.models import ScanResult, TrackMetadata
 from flac_injector.providers.apple_itunes import AppleITunesProvider
 from flac_injector.providers.deezer import DeezerProvider
+from flac_injector.providers.discogs import DiscogsProvider
 from flac_injector.providers.musicbrainz import MusicBrainzProvider
 from flac_injector.providers.spotify import SpotifyProvider
 from flac_injector.scanner import inspect_audio, scan_path
@@ -173,6 +174,7 @@ def run_health_check() -> dict[str, Any]:
         and settings.spotify_client_id.strip()
         and settings.spotify_client_secret.strip()
     )
+    discogs_configured = bool(settings.discogs_token and settings.discogs_token.strip())
 
     return {
         "python_version": sys.version.split()[0],
@@ -188,6 +190,7 @@ def run_health_check() -> dict[str, Any]:
         "env_status": {
             "acoustid_configured": acoustid_configured,
             "spotify_configured": spotify_configured,
+            "discogs_configured": discogs_configured,
             "confidence_threshold": settings.confidence_threshold,
             "cover_art_min_resolution": settings.cover_art_min_resolution,
             "rate_limit_delay": settings.rate_limit_delay,
@@ -356,6 +359,7 @@ async def run_inject_command(
         AppleITunesProvider(settings=settings),
         DeezerProvider(settings=settings),
         SpotifyProvider(settings=settings),
+        DiscogsProvider(settings=settings),
     ]
 
     items_result: list[dict[str, Any]] = []
@@ -451,6 +455,7 @@ async def run_inject_command(
                 apple_provider: AppleITunesProvider = providers[1]
                 deezer_provider: DeezerProvider = providers[2]
                 spotify_provider: SpotifyProvider = providers[3]
+                discogs_provider: DiscogsProvider | None = providers[4] if len(providers) > 4 else None
 
                 # Stage 2: AcoustID & MusicBrainz
                 emit_progress(
@@ -486,6 +491,8 @@ async def run_inject_command(
                         deezer_provider.lookup_by_isrc(isrc),
                         spotify_provider.lookup_by_isrc(isrc),
                     ]
+                    if discogs_provider:
+                        tasks.append(discogs_provider.lookup_by_isrc(isrc))
                     results = await asyncio.gather(*tasks, return_exceptions=True)
                     for r in results:
                         if isinstance(r, list):
@@ -506,6 +513,8 @@ async def run_inject_command(
                         spotify_provider.lookup_by_query(title, artist),
                         mb_provider.lookup_by_query(title, artist, album),
                     ]
+                    if discogs_provider:
+                        tasks.append(discogs_provider.lookup_by_query(title, artist, album))
                     results = await asyncio.gather(*tasks, return_exceptions=True)
                     for r in results:
                         if isinstance(r, list):
@@ -678,6 +687,7 @@ async def run_convert_command(
         AppleITunesProvider(settings=settings),
         DeezerProvider(settings=settings),
         SpotifyProvider(settings=settings),
+        DiscogsProvider(settings=settings),
     ] if inject_tags else []
 
     converted_count = 0
@@ -802,6 +812,9 @@ def get_env_settings() -> dict[str, Any]:
         ),
         "SPOTIFY_CLIENT_SECRET": raw_lines.get(
             "SPOTIFY_CLIENT_SECRET", settings.spotify_client_secret or ""
+        ),
+        "DISCOGS_TOKEN": raw_lines.get(
+            "DISCOGS_TOKEN", settings.discogs_token or ""
         ),
         "MUSICBRAINZ_USER_AGENT": raw_lines.get(
             "MUSICBRAINZ_USER_AGENT", settings.musicbrainz_user_agent

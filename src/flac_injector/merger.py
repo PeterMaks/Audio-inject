@@ -132,6 +132,21 @@ def aggregate_candidates(
         if not merged.date and cand.date:
             merged.date = cand.date
 
+        # 7. Fill missing label, barcode, composer, copyright
+        if not merged.label and cand.label:
+            merged.label = cand.label
+        if not merged.barcode and cand.barcode:
+            merged.barcode = cand.barcode
+        if not merged.composer and cand.composer:
+            merged.composer = cand.composer
+        if not merged.copyright and cand.copyright:
+            merged.copyright = cand.copyright
+
+        # 8. Merge extra tags
+        for k, v in cand.extra_tags.items():
+            if k not in merged.extra_tags:
+                merged.extra_tags[k] = v
+
     # Cover Art Waterfall: Select the candidate with the highest resolution cover art
     best_art_url = merged.cover_art_url
     best_res = (merged.cover_art_width or 0) * (merged.cover_art_height or 0)

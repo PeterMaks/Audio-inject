@@ -19,6 +19,7 @@ A production-grade CLI and Python library that losslessly scans local audio file
   - **Deezer Public API**: Zero-auth endpoint providing exact track **BPM (tempo)**, explicit advisory ratings, and ISRC validation.
   - **Spotify Web API**: Enriched streaming metadata via Client Credentials flow.
   - **Discogs Database API**: Exhaustive physical and niche release catalog with styles, compositions, label catalog numbers, and detailed credits.
+  - **Songlink / Odesli Resolver**: Universal cross-platform music link resolution (Spotify, Apple Music, Deezer, YouTube, Tidal), direct link injection, and cross-platform streaming URLs.
 - **Fuzzy Confidence Scoring**: Uses RapidFuzz token sorting and duration discrepancy penalties ($| \Delta\text{duration} | > 3\text{s}$) to guard against false-positive tag injection.
 - **Rich Interactive CLI**: Built with `typer` and `rich`, featuring visual scan tables with audio format indicators, before/after inspection, dry-run simulation, and immediate post-write read-back verification.
 
@@ -51,16 +52,19 @@ graph TD
     N --> Q[Deezer API: BPM, Explicit, ISRC Meta]
     N --> R[Spotify API: Canonical Tags & Genres]
     N --> D2[Discogs API: Physical Releases & Styles]
+    N --> SL[Songlink / Odesli: Multi-Platform Links & Meta]
     
     O --> P
     O --> Q
     O --> R
     O --> D2
+    O --> SL
     
     P --> S[Waterfall Merger & Fuzzy Confidence Scorer]
     Q --> S
     R --> S
     D2 --> S
+    SL --> S
     K --> S
     
     S --> T{Confidence >= Threshold?}
@@ -289,6 +293,7 @@ flac-meta-injector inject ./music/ --no-convert-wav
 - `--overwrite-art`: Force re-resolves and replaces album art even if the file is already marked complete, without having to wipe text metadata.
 - `--overwrite-unknown`: Selectively overwrites only tracks whose album tag is `"Unknown Album"` or missing, resolving their real album title and unique cover art.
 - `--overwrite-album <name>`: Selectively overwrites tracks matching a specific album tag (e.g. `--overwrite-album "Unknown Album"`).
+- `--song-link, --url <url>`: Direct song.link or streaming platform link (Spotify, Apple Music, Deezer, YouTube) to resolve metadata and cover art directly.
 - `--convert-wav / --no-convert-wav`: Auto-converts any discovered WAV files to FLAC and injects tags into the resulting FLAC (default: `True`).
 - `--recursive / --no-recursive, -r`: Recurse into subdirectories (default: `True`).
 

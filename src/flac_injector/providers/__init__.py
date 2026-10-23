@@ -5,6 +5,7 @@ from flac_injector.providers.base import BaseMetadataProvider
 from flac_injector.providers.deezer import DeezerProvider
 from flac_injector.providers.discogs import DiscogsProvider
 from flac_injector.providers.musicbrainz import MusicBrainzProvider
+from flac_injector.providers.songlink import SonglinkProvider
 from flac_injector.providers.spotify import SpotifyProvider
 
 __all__ = [
@@ -13,5 +14,6 @@ __all__ = [
     "DeezerProvider",
     "DiscogsProvider",
     "MusicBrainzProvider",
+    "SonglinkProvider",
     "SpotifyProvider",
 ]

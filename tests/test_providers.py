@@ -10,6 +10,7 @@ from flac_injector.providers.apple_itunes import AppleITunesProvider
 from flac_injector.providers.deezer import DeezerProvider
 from flac_injector.providers.discogs import DiscogsProvider
 from flac_injector.providers.musicbrainz import MusicBrainzProvider
+from flac_injector.providers.songlink import SonglinkProvider
 from flac_injector.providers.spotify import SpotifyProvider
 
 
@@ -323,4 +324,207 @@ async def test_discogs_unconfigured_token() -> None:
     results_fp = await provider.lookup_by_fingerprint("dummy", 100.0)
     assert results_fp == []
     await provider.close()
+
+
+@pytest.fixture
+def mock_odesli_payload() -> dict:
+    """Fixture returning sample Odesli/Songlink cross-platform API payload."""
+    return {
+        "entityUniqueId": "SPOTIFY_SONG::1jJci4qxiYcOHhQR247rEU",
+        "userCountry": "US",
+        "pageUrl": "https://song.link/s/1jJci4qxiYcOHhQR247rEU",
+        "entitiesByUniqueId": {
+            "SPOTIFY_SONG::1jJci4qxiYcOHhQR247rEU": {
+                "id": "1jJci4qxiYcOHhQR247rEU",
+                "type": "song",
+                "title": "One More Time",
+                "artistName": "Daft Punk",
+                "albumTitle": "Discovery",
+                "thumbnailUrl": "https://i.scdn.co/image/ab67616d0000b273sample",
+                "thumbnailWidth": 640,
+                "thumbnailHeight": 640,
+                "apiProvider": "spotify",
+                "platforms": ["spotify"],
+            },
+            "ITUNES_SONG::697195787": {
+                "id": "697195787",
+                "type": "song",
+                "title": "One More Time",
+                "artistName": "Daft Punk",
+                "albumTitle": "Discovery",
+                "thumbnailUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music/100x100bb.jpg",
+                "thumbnailWidth": 100,
+                "thumbnailHeight": 100,
+                "apiProvider": "itunes",
+                "platforms": ["appleMusic", "itunes"],
+                "isrc": "GBDUW0100055",
+            },
+        },
+        "linksByPlatform": {
+            "spotify": {
+                "url": "https://open.spotify.com/track/1jJci4qxiYcOHhQR247rEU",
+                "entityUniqueId": "SPOTIFY_SONG::1jJci4qxiYcOHhQR247rEU",
+            },
+            "appleMusic": {
+                "url": "https://music.apple.com/us/album/one-more-time/697194953?i=697195787",
+                "entityUniqueId": "ITUNES_SONG::697195787",
+            },
+            "deezer": {
+                "url": "https://www.deezer.com/track/3135556",
+                "entityUniqueId": "DEEZER_SONG::3135556",
+            },
+            "youtube": {
+                "url": "https://youtube.com/watch?v=FGBhQbmPwH8",
+                "entityUniqueId": "YOUTUBE_VIDEO::FGBhQbmPwH8",
+            },
+            "tidal": {
+                "url": "https://tidal.com/browse/track/594191",
+                "entityUniqueId": "TIDAL_SONG::594191",
+            },
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_songlink_lookup_by_url(mock_settings: Settings, mock_odesli_payload: dict) -> None:
+    """Test Songlink resolution via streaming URL."""
+    provider = SonglinkProvider(settings=mock_settings, rate_limit_delay=0.0)
+
+    mock_resp = httpx.Response(200, json=mock_odesli_payload)
+    with patch.object(provider, "request", new=AsyncMock(return_value=mock_resp)):
+        results = await provider.lookup_by_url("https://open.spotify.com/track/1jJci4qxiYcOHhQR247rEU")
+
+    assert len(results) == 1
+    track = results[0]
+    assert track.title == "One More Time"
+    assert track.artist == "Daft Punk"
+    assert track.album == "Discovery"
+    assert track.isrc == "GBDUW0100055"
+    assert track.source_provider == "songlink"
+    assert track.confidence_score >= 0.90
+
+    # Verify high-res 3000x3000px artwork upgrade from Apple Music entity
+    assert track.cover_art_url == "https://is1-ssl.mzstatic.com/image/thumb/Music/3000x3000bb.jpg"
+    assert track.cover_art_width == 3000
+    assert track.cover_art_height == 3000
+
+    # Verify cross-platform link tagging
+    assert track.extra_tags["SONGLINK_URL"] == "https://song.link/s/1jJci4qxiYcOHhQR247rEU"
+    assert track.extra_tags["SPOTIFY_URL"] == "https://open.spotify.com/track/1jJci4qxiYcOHhQR247rEU"
+    assert track.extra_tags["APPLE_MUSIC_URL"] == "https://music.apple.com/us/album/one-more-time/697194953?i=697195787"
+    assert track.extra_tags["DEEZER_URL"] == "https://www.deezer.com/track/3135556"
+    assert track.extra_tags["YOUTUBE_URL"] == "https://youtube.com/watch?v=FGBhQbmPwH8"
+    assert track.extra_tags["TIDAL_URL"] == "https://tidal.com/browse/track/594191"
+
+    await provider.close()
+
+
+@pytest.mark.asyncio
+async def test_songlink_api_key_configuration(mock_odesli_payload: dict) -> None:
+    """Verify that SONGLINK_API_KEY is properly included in request parameters and headers."""
+    settings = Settings(SONGLINK_API_KEY="my_secret_odesli_key")
+    provider = SonglinkProvider(settings=settings, rate_limit_delay=0.0)
+
+    params = provider._get_request_params("https://song.link/s/123")
+    headers = provider._get_request_headers()
+
+    assert params["key"] == "my_secret_odesli_key"
+    assert headers["X-Api-Key"] == "my_secret_odesli_key"
+    assert headers["Authorization"] == "Bearer my_secret_odesli_key"
+    await provider.close()
+
+
+@pytest.mark.asyncio
+async def test_songlink_lookup_by_query_url_passthrough(
+    mock_settings: Settings, mock_odesli_payload: dict
+) -> None:
+    """Verify that when query is a URL, SonglinkProvider routes directly to lookup_by_url."""
+    provider = SonglinkProvider(settings=mock_settings, rate_limit_delay=0.0)
+
+    mock_resp = httpx.Response(200, json=mock_odesli_payload)
+    with patch.object(provider, "request", new=AsyncMock(return_value=mock_resp)):
+        results = await provider.lookup_by_query("https://song.link/s/1jJci4qxiYcOHhQR247rEU")
+
+    assert len(results) == 1
+    assert results[0].title == "One More Time"
+    await provider.close()
+
+
+@pytest.mark.asyncio
+async def test_songlink_lookup_by_query_text_fallback(
+    mock_settings: Settings, mock_odesli_payload: dict
+) -> None:
+    """Verify text queries find streaming URL on Deezer/iTunes and resolve via Songlink."""
+    provider = SonglinkProvider(settings=mock_settings, rate_limit_delay=0.0)
+
+    mock_deezer_search = {
+        "data": [
+            {
+                "id": 3135556,
+                "title": "One More Time",
+                "link": "https://www.deezer.com/track/3135556",
+            }
+        ]
+    }
+
+    async def mock_request(method: str, url: str, **kwargs):
+        if "api.deezer.com/search" in url:
+            return httpx.Response(200, json=mock_deezer_search)
+        if "api.song.link" in url or "api.odesli.co" in url:
+            return httpx.Response(200, json=mock_odesli_payload)
+        return httpx.Response(404)
+
+    with patch.object(provider, "request", side_effect=mock_request):
+        results = await provider.lookup_by_query("One More Time", "Daft Punk")
+
+    assert len(results) == 1
+    assert results[0].title == "One More Time"
+    assert results[0].artist == "Daft Punk"
+    await provider.close()
+
+
+@pytest.mark.asyncio
+async def test_songlink_lookup_by_isrc(
+    mock_settings: Settings, mock_odesli_payload: dict
+) -> None:
+    """Verify that ISRC lookup queries Deezer for streaming link and resolves via Songlink."""
+    provider = SonglinkProvider(settings=mock_settings, rate_limit_delay=0.0)
+
+    mock_deezer_isrc = {
+        "id": 3135556,
+        "title": "One More Time",
+        "link": "https://www.deezer.com/track/3135556",
+    }
+
+    async def mock_request(method: str, url: str, **kwargs):
+        if "api.deezer.com/track/isrc:" in url:
+            return httpx.Response(200, json=mock_deezer_isrc)
+        if "api.song.link" in url or "api.odesli.co" in url:
+            return httpx.Response(200, json=mock_odesli_payload)
+        return httpx.Response(404)
+
+    with patch.object(provider, "request", side_effect=mock_request):
+        results = await provider.lookup_by_isrc("GBDUW0100055")
+
+    assert len(results) == 1
+    assert results[0].title == "One More Time"
+    assert results[0].isrc == "GBDUW0100055"
+    await provider.close()
+
+
+@pytest.mark.asyncio
+async def test_songlink_error_handling(mock_settings: Settings) -> None:
+    """Verify that HTTP errors or empty responses return empty list safely."""
+    provider = SonglinkProvider(settings=mock_settings, rate_limit_delay=0.0)
+
+    mock_err_resp = httpx.Response(401, json={"code": "PUBLIC_API_ACCESS_DEPRECATED"})
+    with patch.object(provider, "request", new=AsyncMock(return_value=mock_err_resp)):
+        results = await provider.lookup_by_url("https://song.link/s/invalid")
+    assert results == []
+
+    # Fingerprint always returns empty
+    results_fp = await provider.lookup_by_fingerprint("dummy", 100.0)
+    assert results_fp == []
+    await provider.close()
+
 

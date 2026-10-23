@@ -1,8 +1,9 @@
 """Configuration and environment settings for flac-meta-injector."""
 
 from pathlib import Path
+from typing import Any
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,6 +21,18 @@ class Settings(BaseSettings):
     spotify_client_id: str | None = Field(default=None, alias="SPOTIFY_CLIENT_ID")
     spotify_client_secret: str | None = Field(default=None, alias="SPOTIFY_CLIENT_SECRET")
     discogs_token: str | None = Field(default=None, alias="DISCOGS_TOKEN")
+    songlink_api_key: str | None = Field(default=None, alias="SONGLINK_API_KEY")
+
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_songlink_key(cls, data: Any) -> Any:
+        import os
+        if isinstance(data, dict):
+            if not data.get("SONGLINK_API_KEY") and data.get("ODESLI_API_KEY"):
+                data["SONGLINK_API_KEY"] = data["ODESLI_API_KEY"]
+            elif not data.get("SONGLINK_API_KEY") and os.environ.get("ODESLI_API_KEY"):
+                data["SONGLINK_API_KEY"] = os.environ.get("ODESLI_API_KEY")
+        return data
 
     # MusicBrainz compliant User-Agent
     musicbrainz_user_agent: str = Field(

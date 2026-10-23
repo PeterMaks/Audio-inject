@@ -21,6 +21,7 @@ from flac_injector.providers.apple_itunes import AppleITunesProvider
 from flac_injector.providers.deezer import DeezerProvider
 from flac_injector.providers.discogs import DiscogsProvider
 from flac_injector.providers.musicbrainz import MusicBrainzProvider
+from flac_injector.providers.songlink import SonglinkProvider
 from flac_injector.providers.spotify import SpotifyProvider
 from flac_injector.scanner import inspect_audio, scan_path
 from flac_injector.writer import clean_embedded_art, inject_metadata
@@ -241,6 +242,7 @@ async def _resolve_and_inject_track(
     overwrite_unknown: bool = False,
     overwrite_album: str | None = None,
     art_cache: ArtworkCache | None = None,
+    song_link: str | None = None,
 ) -> bool:
     """Resolve metadata across providers and inject into FLAC or MP3 (or convert WAV)."""
     scan_res = inspect_audio(file_path)
@@ -297,14 +299,58 @@ async def _resolve_and_inject_track(
         hints["album"] = scan_res.existing_tags["ALBUM"][0]
 
     all_candidates: list[TrackMetadata] = []
-    mb_provider: MusicBrainzProvider = providers[0]
-    apple_provider: AppleITunesProvider = providers[1]
-    deezer_provider: DeezerProvider = providers[2]
-    spotify_provider: SpotifyProvider = providers[3]
-    discogs_provider: DiscogsProvider | None = providers[4] if len(providers) > 4 else None
+    mb_provider: MusicBrainzProvider | None = next(
+        (p for p in providers if getattr(p, "name", "") == "musicbrainz"), None
+    )
+    apple_provider: AppleITunesProvider | None = next(
+        (p for p in providers if getattr(p, "name", "") == "apple_itunes"), None
+    )
+    deezer_provider: DeezerProvider | None = next(
+        (p for p in providers if getattr(p, "name", "") == "deezer"), None
+    )
+    spotify_provider: SpotifyProvider | None = next(
+        (p for p in providers if getattr(p, "name", "") == "spotify"), None
+    )
+    discogs_provider: DiscogsProvider | None = next(
+        (p for p in providers if getattr(p, "name", "") == "discogs"), None
+    )
+    songlink_provider: SonglinkProvider | None = next(
+        (p for p in providers if getattr(p, "name", "") == "songlink"), None
+    )
+
+    # Step 0: Direct Song Link / Streaming URL lookup if provided or present in tags
+    direct_url = song_link
+    if not direct_url:
+        for tag_key in ("SONGLINK", "URL", "WWWAUDIOFILE", "COMMENT", "DESCRIPTION"):
+            for val in scan_res.existing_tags.get(tag_key, []):
+                val_s = val.strip()
+                if any(
+                    domain in val_s
+                    for domain in (
+                        "song.link",
+                        "odesli.co",
+                        "open.spotify.com",
+                        "music.apple.com",
+                        "deezer.com",
+                        "youtube.com",
+                        "youtu.be",
+                        "tidal.com",
+                    )
+                ):
+                    direct_url = val_s
+                    break
+            if direct_url:
+                break
+
+    if direct_url and songlink_provider:
+        try:
+            sl_candidates = await songlink_provider.lookup_by_url(direct_url)
+            all_candidates.extend(sl_candidates)
+        except Exception:
+            pass
 
     # Step 1: Acoustic Fingerprint Lookup
-    if fp and fp.fingerprint:
+    if fp and fp.fingerprint and mb_provider:
         mb_candidates = await mb_provider.lookup_by_fingerprint(fp.fingerprint, fp.duration)
         all_candidates.extend(mb_candidates)
 
@@ -316,35 +362,46 @@ async def _resolve_and_inject_track(
             break
 
     if isrc:
-        tasks = [
-            apple_provider.lookup_by_isrc(isrc),
-            deezer_provider.lookup_by_isrc(isrc),
-            spotify_provider.lookup_by_isrc(isrc),
-        ]
+        tasks = []
+        if apple_provider:
+            tasks.append(apple_provider.lookup_by_isrc(isrc))
+        if deezer_provider:
+            tasks.append(deezer_provider.lookup_by_isrc(isrc))
+        if spotify_provider:
+            tasks.append(spotify_provider.lookup_by_isrc(isrc))
         if discogs_provider:
             tasks.append(discogs_provider.lookup_by_isrc(isrc))
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for r in results:
-            if isinstance(r, list):
-                all_candidates.extend(r)
+        if songlink_provider:
+            tasks.append(songlink_provider.lookup_by_isrc(isrc))
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for r in results:
+                if isinstance(r, list):
+                    all_candidates.extend(r)
 
     # Step 3: Query Lookup Fallback
     if not all_candidates and hints.get("title"):
         title = hints["title"]
         artist = hints.get("artist")
         album = hints.get("album")
-        tasks = [
-            apple_provider.lookup_by_query(title, artist),
-            deezer_provider.lookup_by_query(title, artist),
-            spotify_provider.lookup_by_query(title, artist),
-            mb_provider.lookup_by_query(title, artist, album),
-        ]
+        tasks = []
+        if apple_provider:
+            tasks.append(apple_provider.lookup_by_query(title, artist))
+        if deezer_provider:
+            tasks.append(deezer_provider.lookup_by_query(title, artist))
+        if spotify_provider:
+            tasks.append(spotify_provider.lookup_by_query(title, artist))
+        if mb_provider:
+            tasks.append(mb_provider.lookup_by_query(title, artist, album))
         if discogs_provider:
             tasks.append(discogs_provider.lookup_by_query(title, artist, album))
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for r in results:
-            if isinstance(r, list):
-                all_candidates.extend(r)
+        if songlink_provider:
+            tasks.append(songlink_provider.lookup_by_query(title, artist, album))
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for r in results:
+                if isinstance(r, list):
+                    all_candidates.extend(r)
 
     # Step 4: Waterfall Aggregation
     best = aggregate_candidates(
@@ -461,6 +518,14 @@ def inject(
             help="Selectively overwrite tracks whose existing album matches this specific name (e.g. 'Unknown Album').",
         ),
     ] = None,
+    song_link: Annotated[
+        str | None,
+        typer.Option(
+            "--song-link",
+            "--url",
+            help="Direct song.link or streaming platform URL to resolve metadata from.",
+        ),
+    ] = None,
     convert_wav: Annotated[
         bool,
         typer.Option(
@@ -504,6 +569,7 @@ def inject(
             DeezerProvider(settings=settings),
             SpotifyProvider(settings=settings),
             DiscogsProvider(settings=settings),
+            SonglinkProvider(settings=settings),
         ]
         try:
             for file_path in audio_files:
@@ -518,6 +584,7 @@ def inject(
                     overwrite_unknown=overwrite_unknown,
                     overwrite_album=overwrite_album,
                     art_cache=art_cache,
+                    song_link=song_link,
                 )
         finally:
             for p in providers:
@@ -600,6 +667,7 @@ def convert(
             DeezerProvider(settings=settings),
             SpotifyProvider(settings=settings),
             DiscogsProvider(settings=settings),
+            SonglinkProvider(settings=settings),
         ] if inject_tags else []
 
         try:

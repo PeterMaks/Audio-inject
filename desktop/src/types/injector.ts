@@ -63,7 +63,7 @@ export interface TrackMetadata {
 
 export interface ProgressEvent {
   type: "progress";
-  stage: "start" | "convert" | "fingerprint" | "acoustid" | "itunes" | "deezer" | "spotify" | "merge" | "art" | "write" | "done" | "skip" | "unmatched" | "dry_run" | "finished";
+  stage: "start" | "convert" | "fingerprint" | "acoustid" | "itunes" | "deezer" | "spotify" | "songlink" | "merge" | "art" | "write" | "done" | "skip" | "unmatched" | "dry_run" | "finished";
   file: string;
   percent: number;
   message: string;
@@ -84,6 +84,8 @@ export interface HealthStatus {
   env_status: {
     acoustid_configured: boolean;
     spotify_configured: boolean;
+    discogs_configured?: boolean;
+    songlink_configured?: boolean;
     confidence_threshold: number;
     cover_art_min_resolution: number;
     rate_limit_delay: number;
@@ -95,6 +97,8 @@ export interface EnvSettings {
   ACOUSTID_API_KEY: string;
   SPOTIFY_CLIENT_ID: string;
   SPOTIFY_CLIENT_SECRET: string;
+  DISCOGS_TOKEN?: string;
+  SONGLINK_API_KEY?: string;
   MUSICBRAINZ_USER_AGENT: string;
   RATE_LIMIT_DELAY: number;
   COVER_ART_MIN_RESOLUTION: number;

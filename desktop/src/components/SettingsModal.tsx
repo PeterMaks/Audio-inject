@@ -12,6 +12,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
     ACOUSTID_API_KEY: "",
     SPOTIFY_CLIENT_ID: "",
     SPOTIFY_CLIENT_SECRET: "",
+    SONGLINK_API_KEY: "",
     MUSICBRAINZ_USER_AGENT: "flac-meta-injector/0.1.0",
     RATE_LIMIT_DELAY: 1.0,
     COVER_ART_MIN_RESOLUTION: 600,
@@ -114,6 +115,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
                 setSettings({
                   ...settings,
                   SPOTIFY_CLIENT_SECRET: e.target.value,
+                })
+              }
+              className="col-span-2 px-3 py-2 rounded-xl bg-black/30 border border-white/[0.1] text-white font-mono text-[11px] focus:outline-none focus:border-[#0A84FF]"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 items-center gap-4">
+            <label className="text-white/75 font-medium">Songlink / Odesli API Key</label>
+            <input
+              type={showSecrets ? "text" : "password"}
+              placeholder="Optional Songlink API key"
+              value={settings.SONGLINK_API_KEY || ""}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  SONGLINK_API_KEY: e.target.value,
                 })
               }
               className="col-span-2 px-3 py-2 rounded-xl bg-black/30 border border-white/[0.1] text-white font-mono text-[11px] focus:outline-none focus:border-[#0A84FF]"

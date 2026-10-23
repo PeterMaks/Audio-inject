@@ -25,6 +25,7 @@ def test_health_check():
     assert "ffmpeg" in health
     assert "fpcalc" in health
     assert "env_status" in health
+    assert "songlink_configured" in health["env_status"]
     assert isinstance(health["ffmpeg"]["available"], bool)
     assert isinstance(health["env_status"]["confidence_threshold"], float)
 
@@ -61,17 +62,21 @@ def test_env_settings_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
 
     current = get_env_settings()
     assert current["CONFIDENCE_THRESHOLD"] == 0.75
+    assert "SONGLINK_API_KEY" in current
 
     updated = save_env_settings({
         "CONFIDENCE_THRESHOLD": 0.85,
         "SPOTIFY_CLIENT_ID": "test_id_123",
+        "SONGLINK_API_KEY": "test_songlink_key_456",
     })
     assert updated["CONFIDENCE_THRESHOLD"] == 0.85
     assert updated["SPOTIFY_CLIENT_ID"] == "test_id_123"
+    assert updated["SONGLINK_API_KEY"] == "test_songlink_key_456"
 
     saved_text = env_file.read_text(encoding="utf-8")
     assert "CONFIDENCE_THRESHOLD=0.85" in saved_text
     assert "SPOTIFY_CLIENT_ID=test_id_123" in saved_text
+    assert "SONGLINK_API_KEY=test_songlink_key_456" in saved_text
 
 
 @pytest.mark.asyncio

@@ -30,6 +30,7 @@ from flac_injector.providers.apple_itunes import AppleITunesProvider
 from flac_injector.providers.deezer import DeezerProvider
 from flac_injector.providers.discogs import DiscogsProvider
 from flac_injector.providers.musicbrainz import MusicBrainzProvider
+from flac_injector.providers.songlink import SonglinkProvider
 from flac_injector.providers.spotify import SpotifyProvider
 from flac_injector.scanner import inspect_audio, scan_path
 from flac_injector.writer import inject_metadata
@@ -176,6 +177,7 @@ def run_health_check() -> dict[str, Any]:
         and settings.spotify_client_secret.strip()
     )
     discogs_configured = bool(settings.discogs_token and settings.discogs_token.strip())
+    songlink_configured = bool(settings.songlink_api_key and settings.songlink_api_key.strip())
 
     return {
         "python_version": sys.version.split()[0],
@@ -192,6 +194,7 @@ def run_health_check() -> dict[str, Any]:
             "acoustid_configured": acoustid_configured,
             "spotify_configured": spotify_configured,
             "discogs_configured": discogs_configured,
+            "songlink_configured": songlink_configured,
             "confidence_threshold": settings.confidence_threshold,
             "cover_art_min_resolution": settings.cover_art_min_resolution,
             "rate_limit_delay": settings.rate_limit_delay,
@@ -316,6 +319,7 @@ async def run_inject_command(
     overwrite: bool = False,
     convert_wav: bool = True,
     recursive: bool = True,
+    song_link: str | None = None,
 ) -> dict[str, Any]:
     """Resolve and inject metadata across multiple audio tracks with live progress."""
     settings = get_settings()
@@ -361,6 +365,7 @@ async def run_inject_command(
         DeezerProvider(settings=settings),
         SpotifyProvider(settings=settings),
         DiscogsProvider(settings=settings),
+        SonglinkProvider(settings=settings),
     ]
 
     art_cache = ArtworkCache()
@@ -454,11 +459,65 @@ async def run_inject_command(
                     hints["album"] = scan_res.existing_tags["ALBUM"][0]
 
                 all_candidates: list[TrackMetadata] = []
-                mb_provider: MusicBrainzProvider = providers[0]
-                apple_provider: AppleITunesProvider = providers[1]
-                deezer_provider: DeezerProvider = providers[2]
-                spotify_provider: SpotifyProvider = providers[3]
-                discogs_provider: DiscogsProvider | None = providers[4] if len(providers) > 4 else None
+                mb_provider = next(
+                    (p for p in providers if getattr(p, "name", "") == "musicbrainz"), None
+                )
+                apple_provider = next(
+                    (p for p in providers if getattr(p, "name", "") == "apple_itunes"), None
+                )
+                deezer_provider = next(
+                    (p for p in providers if getattr(p, "name", "") == "deezer"), None
+                )
+                spotify_provider = next(
+                    (p for p in providers if getattr(p, "name", "") == "spotify"), None
+                )
+                discogs_provider = next(
+                    (p for p in providers if getattr(p, "name", "") == "discogs"), None
+                )
+                songlink_provider = next(
+                    (p for p in providers if getattr(p, "name", "") == "songlink"), None
+                )
+
+                # Stage 1.5: Direct Song Link / Streaming URL lookup
+                direct_url = song_link
+                if not direct_url:
+                    for tag_key in ("SONGLINK", "URL", "WWWAUDIOFILE", "COMMENT", "DESCRIPTION"):
+                        for val in scan_res.existing_tags.get(tag_key, []):
+                            val_s = val.strip()
+                            if any(
+                                domain in val_s
+                                for domain in (
+                                    "song.link",
+                                    "odesli.co",
+                                    "open.spotify.com",
+                                    "music.apple.com",
+                                    "deezer.com",
+                                    "youtube.com",
+                                    "youtu.be",
+                                    "tidal.com",
+                                )
+                            ):
+                                direct_url = val_s
+                                break
+                        if direct_url:
+                            break
+
+                if direct_url and songlink_provider:
+                    emit_progress(
+                        stage="songlink",
+                        file=str(file_path),
+                        percent=file_percent + (100.0 / total_files) * 0.20,
+                        message=f"Resolving via Songlink: {direct_url[:50]}...",
+                    )
+                    try:
+                        sl_candidates = await songlink_provider.lookup_by_url(direct_url)
+                        all_candidates.extend(sl_candidates)
+                    except Exception as e:
+                        emit_event({
+                            "type": "provider_warning",
+                            "provider": "songlink",
+                            "message": str(e),
+                        })
 
                 # Stage 2: AcoustID & MusicBrainz
                 emit_progress(
@@ -467,7 +526,7 @@ async def run_inject_command(
                     percent=file_percent + (100.0 / total_files) * 0.30,
                     message="Querying MusicBrainz & AcoustID...",
                 )
-                if fp and fp.fingerprint:
+                if fp and fp.fingerprint and mb_provider:
                     try:
                         mb_candidates = await mb_provider.lookup_by_fingerprint(
                             fp.fingerprint, fp.duration
@@ -489,17 +548,22 @@ async def run_inject_command(
                         percent=file_percent + (100.0 / total_files) * 0.45,
                         message=f"Querying Apple iTunes & providers by ISRC: {isrc}...",
                     )
-                    tasks = [
-                        apple_provider.lookup_by_isrc(isrc),
-                        deezer_provider.lookup_by_isrc(isrc),
-                        spotify_provider.lookup_by_isrc(isrc),
-                    ]
+                    tasks = []
+                    if apple_provider:
+                        tasks.append(apple_provider.lookup_by_isrc(isrc))
+                    if deezer_provider:
+                        tasks.append(deezer_provider.lookup_by_isrc(isrc))
+                    if spotify_provider:
+                        tasks.append(spotify_provider.lookup_by_isrc(isrc))
                     if discogs_provider:
                         tasks.append(discogs_provider.lookup_by_isrc(isrc))
-                    results = await asyncio.gather(*tasks, return_exceptions=True)
-                    for r in results:
-                        if isinstance(r, list):
-                            all_candidates.extend(r)
+                    if songlink_provider:
+                        tasks.append(songlink_provider.lookup_by_isrc(isrc))
+                    if tasks:
+                        results = await asyncio.gather(*tasks, return_exceptions=True)
+                        for r in results:
+                            if isinstance(r, list):
+                                all_candidates.extend(r)
                 elif hints.get("title"):
                     emit_progress(
                         stage="itunes",
@@ -510,18 +574,24 @@ async def run_inject_command(
                     title = hints["title"]
                     artist = hints.get("artist")
                     album = hints.get("album")
-                    tasks = [
-                        apple_provider.lookup_by_query(title, artist),
-                        deezer_provider.lookup_by_query(title, artist),
-                        spotify_provider.lookup_by_query(title, artist),
-                        mb_provider.lookup_by_query(title, artist, album),
-                    ]
+                    tasks = []
+                    if apple_provider:
+                        tasks.append(apple_provider.lookup_by_query(title, artist))
+                    if deezer_provider:
+                        tasks.append(deezer_provider.lookup_by_query(title, artist))
+                    if spotify_provider:
+                        tasks.append(spotify_provider.lookup_by_query(title, artist))
+                    if mb_provider:
+                        tasks.append(mb_provider.lookup_by_query(title, artist, album))
                     if discogs_provider:
                         tasks.append(discogs_provider.lookup_by_query(title, artist, album))
-                    results = await asyncio.gather(*tasks, return_exceptions=True)
-                    for r in results:
-                        if isinstance(r, list):
-                            all_candidates.extend(r)
+                    if songlink_provider:
+                        tasks.append(songlink_provider.lookup_by_query(title, artist, album))
+                    if tasks:
+                        results = await asyncio.gather(*tasks, return_exceptions=True)
+                        for r in results:
+                            if isinstance(r, list):
+                                all_candidates.extend(r)
 
                 # Stage 4: Waterfall Aggregation
                 emit_progress(
@@ -834,6 +904,9 @@ def get_env_settings() -> dict[str, Any]:
         "DISCOGS_TOKEN": raw_lines.get(
             "DISCOGS_TOKEN", settings.discogs_token or ""
         ),
+        "SONGLINK_API_KEY": raw_lines.get(
+            "SONGLINK_API_KEY", settings.songlink_api_key or ""
+        ),
         "MUSICBRAINZ_USER_AGENT": raw_lines.get(
             "MUSICBRAINZ_USER_AGENT", settings.musicbrainz_user_agent
         ),
@@ -909,6 +982,7 @@ async def dispatch_command(action: str, params: dict[str, Any]) -> None:
             overwrite = bool(params.get("overwrite", False))
             convert_wav = bool(params.get("convert_wav", True))
             recursive = bool(params.get("recursive", True))
+            song_link = params.get("song_link")
             res = await run_inject_command(
                 paths=paths,
                 threshold=threshold,
@@ -916,6 +990,7 @@ async def dispatch_command(action: str, params: dict[str, Any]) -> None:
                 overwrite=overwrite,
                 convert_wav=convert_wav,
                 recursive=recursive,
+                song_link=song_link,
             )
             emit_result("inject", res)
         elif action == "convert":

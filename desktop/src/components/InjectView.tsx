@@ -84,6 +84,7 @@ export const InjectView: React.FC<InjectViewProps> = ({
       case "deezer":
         return 3;
       case "spotify":
+      case "songlink":
         return 4;
       case "merge":
       case "write":

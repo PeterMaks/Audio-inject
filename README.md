@@ -11,6 +11,7 @@ A production-grade CLI and Python library that losslessly scans local audio file
 ## Key Features
 
 - **Multi-Format Lossless Metadata Surgery**: Direct header and tag manipulation via `mutagen.flac.FLAC` (Vorbis Comments & Picture blocks) and `mutagen.mp3.MP3` (ID3v2.4 & APIC frames)—no audio re-encoding, preserving 100% bit-perfect audio stream integrity.
+- **Multi-Artist Separation & Compound Band Protection**: Collaborating artists (separated by commas, semicolons, slashes, or `feat.`/`ft.`/`&`) are cleanly split and written as individual `ARTIST` entries in FLAC Vorbis comments (repeated tags) and ID3v2.4 `TPE1` lists, with automatic protection for compound artist names (e.g. *Earth, Wind & Fire*, *Tyler, The Creator*, *AC/DC*, *Simon & Garfunkel*).
 - **WAV to Lossless FLAC Conversion**: Built-in audio conversion engine powered by FFmpeg converting uncompressed `.wav`, `.wave`, `.aiff` files to FLAC with custom compression levels and automatic post-conversion tagging.
 - **Acoustic Audio Fingerprinting**: Uses Chromaprint (`fpcalc`) and AcoustID to recognize tracks by actual audio waveform, completely bypassing stripped or wrong filenames across FLAC, MP3, and WAV.
 - **Intelligent Provider Waterfall Pipeline**:
@@ -305,8 +306,10 @@ Imports manual or exported Spotify playlist/library data (from Exportify, Spotli
 
 **Key Matching Behavior:**
 - **Strict Similarity Gate**: Only audio files that match Spotify tracks above the similarity threshold (`--threshold`, default `0.70`) have their metadata updated. Unrelated songs are safely ignored.
-- **Smart Metadata Gap Filling**: By default, existing accurate tags are preserved while missing gaps are completed (Album, Release Date/Year, Genres, Record Label, BPM/Tempo, Explicit flag, ISRC, Spotify Track ID, and audio features like Energy, Danceability, Valence, etc.).
-- **Full Overwrite Support**: Pass `--overwrite` if you wish to overwrite existing non-empty tags with the Spotify dataset values.
+- **Dual-Source Matching (Tags & Filename)**: Compares Spotify tracks against both embedded audio tags and parsed filenames (e.g. `Artist - Title.flac`). Even files with corrupt, empty, or mismatched internal tags are matched accurately.
+- **Automatic Mismatched Tag Overwrite**: When a file matches a Spotify track via filename but internal tags are discordant (< 70% similarity), those mismatched core tags (Artist, Title, Album) are selectively updated with verified Spotify metadata without requiring a full `--overwrite`.
+- **Smart Metadata Gap Filling**: Existing accurate tags are preserved while missing gaps are completed (Album, Release Date/Year, Genres, Record Label, BPM/Tempo, Explicit flag, ISRC, Spotify Track ID, and audio features like Energy, Danceability, Valence, etc.).
+- **Full Overwrite Support**: Pass `--overwrite` if you wish to overwrite all existing non-empty tags with the Spotify dataset values.
 - **Multi-Format Ingestion**: Supports `.csv`, `.tsv`, and `.json` exports with automatic column detection, artist semicolon-splitting, and UTF-8-BOM handling.
 
 ```bash
@@ -332,6 +335,7 @@ flac-meta-injector import-spotify ./music/ --data ./spotify_playlist.csv
 - `--threshold, -t FLOAT`: Minimum similarity score required to match (default: `0.70`).
 - `--dry-run`: Preview matches, similarity scores, and proposed tag updates without modifying disk files.
 - `--overwrite`: Overwrites existing non-empty tags instead of only filling missing gaps (default: `False`).
+- `--overwrite-mismatched / --no-overwrite-mismatched`: Overwrites discordant artist/title/album tags when matched via filename (default: `True`).
 - `--overwrite-art`: Replaces embedded cover art if available from matched Spotify records.
 - `--fetch-art`: Resolves and downloads master album art from providers for matched tracks (default: `False`).
 - `--convert-wav / --no-convert-wav`: Auto-converts WAV files to FLAC before matching (default: `True`).

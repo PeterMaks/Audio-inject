@@ -186,3 +186,31 @@ def test_clean_embedded_art_deduplicates_pictures_and_removes_tags(untagged_flac
     assert "COVERART" not in verified
 
 
+def test_inject_multi_artist_flac(untagged_flac: Path) -> None:
+    """Test that multiple collaborating artists are injected as individual Vorbis ARTIST tags."""
+    from flac_injector.scanner import inspect_audio
+
+    meta = TrackMetadata(
+        title="Get Lucky",
+        artist="Daft Punk, Pharrell Williams & Nile Rodgers",
+        album="Random Access Memories",
+    )
+
+    assert meta.artists == ["Daft Punk", "Pharrell Williams", "Nile Rodgers"]
+    vorbis = meta.to_vorbis_comments()
+    assert vorbis["ARTIST"] == ["Daft Punk", "Pharrell Williams", "Nile Rodgers"]
+    assert vorbis["ALBUMARTIST"] == ["Daft Punk"]
+
+    result = inject_metadata(untagged_flac, meta, overwrite_existing=True)
+    assert result["status"] == "success"
+
+    audio = FLAC(str(untagged_flac))
+    assert audio["ARTIST"] == ["Daft Punk", "Pharrell Williams", "Nile Rodgers"]
+    assert audio["ALBUMARTIST"] == ["Daft Punk"]
+
+    # Verify scanner reads all artists
+    scan = inspect_audio(untagged_flac)
+    assert scan.existing_tags["ARTIST"] == ["Daft Punk", "Pharrell Williams", "Nile Rodgers"]
+
+
+

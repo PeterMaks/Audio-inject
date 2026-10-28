@@ -209,6 +209,73 @@ def test_match_file_to_spotify_overwrite() -> None:
     assert "ALBUM" in res_ow.overwritten_tags
 
 
+def test_match_file_to_spotify_mismatched_tags_overwrite(untagged_flac: Path, tmp_path: Path) -> None:
+    """Test that files with mismatched artist/song name tags are matched by filename and overwritten."""
+    import shutil
+    from mutagen.flac import FLAC
+    from flac_injector.writer import inject_metadata
+
+    flac_file = tmp_path / "GARNiDELiA - ambiguous.flac"
+    shutil.copy(untagged_flac, flac_file)
+
+    # File has wrong/bogus internal metadata tags
+    audio = FLAC(str(flac_file))
+    audio["TITLE"] = ["Track 01"]
+    audio["ARTIST"] = ["Wrong Artist"]
+    audio["ALBUM"] = ["Wrong Album"]
+    audio.save()
+
+    records = load_spotify_data(SAMPLE_EXPORTIFY_CSV)
+
+    # 1. Match with overwrite_mismatched=True (default)
+    res = match_file_to_spotify(flac_file, records, threshold=0.70, overwrite=False)
+    assert res.is_match is True
+    assert res.spotify_record.title == "ambiguous"
+    assert res.spotify_record.artist == "GARNiDELiA"
+    assert "TITLE" in res.overwritten_tags
+    assert "ARTIST" in res.overwritten_tags
+    assert "ALBUM" in res.overwritten_tags
+    assert res.metadata_to_inject.title == "ambiguous"
+    assert res.metadata_to_inject.artist == "GARNiDELiA"
+    assert res.metadata_to_inject.album == "Linkage Ring"
+
+    # 2. Inject to disk using overwrite_tags
+    inject_metadata(flac_file, res.metadata_to_inject, overwrite_existing=False, overwrite_tags=res.overwritten_tags)
+
+    # 3. Verify directly on disk
+    updated_audio = FLAC(str(flac_file))
+    assert updated_audio["TITLE"] == ["ambiguous"]
+    assert updated_audio["ARTIST"] == ["GARNiDELiA"]
+    assert updated_audio["ALBUM"] == ["Linkage Ring"]
+
+
+def test_match_file_to_spotify_mismatched_preserved_when_flag_disabled(untagged_flac: Path, tmp_path: Path) -> None:
+    """Test that mismatched tags are preserved when overwrite_mismatched=False."""
+    import shutil
+    from mutagen.flac import FLAC
+
+    flac_file = tmp_path / "GARNiDELiA - ambiguous.flac"
+    shutil.copy(untagged_flac, flac_file)
+
+    audio = FLAC(str(flac_file))
+    audio["TITLE"] = ["Track 01"]
+    audio["ARTIST"] = ["Wrong Artist"]
+    audio["ALBUM"] = ["Wrong Album"]
+    audio.save()
+
+    records = load_spotify_data(SAMPLE_EXPORTIFY_CSV)
+
+    res = match_file_to_spotify(flac_file, records, threshold=0.70, overwrite=False, overwrite_mismatched=False)
+    assert res.is_match is True
+    # When overwrite_mismatched=False and overwrite=False, existing tags should be preserved
+    assert res.metadata_to_inject.title == "Track 01"
+    assert res.metadata_to_inject.artist == "Wrong Artist"
+    assert res.metadata_to_inject.album == "Wrong Album"
+    assert "TITLE" not in res.overwritten_tags
+    assert "ARTIST" not in res.overwritten_tags
+
+
+
 def test_cli_match_spotify_dry_run(untagged_flac: Path, tmp_path: Path) -> None:
     """Test CLI match-spotify with --dry-run option."""
     import shutil
@@ -266,6 +333,39 @@ def test_cli_match_spotify_injection(untagged_flac: Path, tmp_path: Path) -> Non
     assert updated_audio["LABEL"] == ["Sony Music Labels Inc."]
     assert updated_audio["BPM"] == ["178.2"]
     assert updated_audio["SPOTIFY_TRACK_ID"] == ["0oCP1Vu9LGVP88atKzOswC"]
+
+
+def test_cli_match_spotify_overwrites_mismatched_tags(untagged_flac: Path, tmp_path: Path) -> None:
+    """Test that CLI match-spotify detects mismatched tags by filename and overwrites them."""
+    import shutil
+    from typer.testing import CliRunner
+    from mutagen.flac import FLAC
+    from flac_injector.cli import app
+
+    flac_file = tmp_path / "GARNiDELiA - ambiguous.flac"
+    shutil.copy(untagged_flac, flac_file)
+
+    # Corrupt internal tags
+    audio = FLAC(str(flac_file))
+    audio["TITLE"] = ["Track 01"]
+    audio["ARTIST"] = ["Unknown Artist"]
+    audio["ALBUM"] = ["Wrong Album"]
+    audio.save()
+
+    csv_file = tmp_path / "spotify_export.csv"
+    csv_file.write_text(SAMPLE_EXPORTIFY_CSV, encoding="utf-8")
+
+    runner = CliRunner(env={"COLUMNS": "300"})
+    result = runner.invoke(app, ["match-spotify", str(flac_file), str(csv_file)])
+    assert result.exit_code == 0
+    assert "Matched: 1" in result.output
+    assert "overwrites" in result.output
+
+    updated_audio = FLAC(str(flac_file))
+    assert updated_audio["TITLE"] == ["ambiguous"]
+    assert updated_audio["ARTIST"] == ["GARNiDELiA"]
+    assert updated_audio["ALBUM"] == ["Linkage Ring"]
+
 
 
 def test_cli_import_spotify_alias(untagged_flac: Path, tmp_path: Path) -> None:

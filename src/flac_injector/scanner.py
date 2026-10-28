@@ -11,7 +11,7 @@ from mutagen.mp3 import HeaderNotFoundError as MP3HeaderNotFoundError
 from mutagen.wave import WAVE
 from PIL import Image
 
-from flac_injector.models import PLACEHOLDER_TAG_VALUES, ScanResult
+from flac_injector.models import PLACEHOLDER_TAG_VALUES, ScanResult, split_artists
 
 # Tags considered essential for a complete music collection
 CORE_TAGS = {"TITLE", "ARTIST", "ALBUM"}
@@ -67,7 +67,12 @@ def _inspect_flac(path: Path) -> ScanResult:
     existing_tags: dict[str, list[str]] = {}
     if audio.tags:
         for k, v in audio.tags.items():
-            existing_tags[k.upper()] = [str(item).strip() for item in v if str(item).strip()]
+            key_upper = k.upper()
+            raw_vals = [str(item).strip() for item in v if str(item).strip()]
+            if key_upper == "ARTIST":
+                existing_tags["ARTIST"] = split_artists(raw_vals)
+            else:
+                existing_tags[key_upper] = raw_vals
 
     missing_fields = _detect_missing_fields(existing_tags)
 
@@ -183,6 +188,8 @@ def _extract_id3_tags(tags: Any) -> tuple[dict[str, list[str]], bool, dict[str, 
                     parts = vals[0].split("/", 1)
                     existing_tags["TRACKNUMBER"] = [parts[0].strip()]
                     existing_tags["TRACKTOTAL"] = [parts[1].strip()]
+                elif canonical_name == "ARTIST":
+                    existing_tags["ARTIST"] = split_artists(vals)
                 else:
                     existing_tags[canonical_name] = vals
 

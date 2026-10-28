@@ -34,6 +34,7 @@ export interface ScanResponse {
 export interface TrackMetadata {
   title: string;
   artist: string;
+  artists?: string[];
   album: string;
   album_artist?: string | null;
   track_number?: string | null;

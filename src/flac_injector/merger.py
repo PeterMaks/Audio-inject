@@ -123,6 +123,10 @@ def aggregate_candidates(
         if merged.artist.strip().lower() in ("unknown artist", "unknown", ""):
             if cand.artist and cand.artist.strip().lower() not in ("unknown artist", "unknown", ""):
                 merged.artist = cand.artist
+                merged.artists = cand.artists
+        elif cand.artists and len(cand.artists) > len(merged.artists):
+            # Prefer candidate with more granular/complete multi-artist credit
+            merged.artists = cand.artists
 
         # 1. Fill missing ISRC
         if not merged.isrc and cand.isrc:

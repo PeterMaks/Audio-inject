@@ -146,10 +146,8 @@ class MusicBrainzProvider(BaseMetadataProvider):
                     mbid = recording.get("id")
                     title = recording.get("title", "")
                     artists = recording.get("artists", [])
-                    artist_name = (
-                        ", ".join([a.get("name", "") for a in artists if a.get("name")])
-                        or "Unknown Artist"
-                    )
+                    artist_list = [a.get("name", "").strip() for a in artists if a.get("name")]
+                    artist_name = ", ".join(artist_list) or "Unknown Artist"
                     artist_id = artists[0].get("id") if artists else None
 
                     releases = recording.get("releases", [])
@@ -184,6 +182,7 @@ class MusicBrainzProvider(BaseMetadataProvider):
                             meta = TrackMetadata(
                                 title=title or "Unknown Title",
                                 artist=artist_name,
+                                artists=artist_list,
                                 album=album_name,
                                 track_number=track_num,
                                 track_total=track_total,
@@ -201,6 +200,7 @@ class MusicBrainzProvider(BaseMetadataProvider):
                         meta = TrackMetadata(
                             title=title or "Unknown Title",
                             artist=artist_name,
+                            artists=artist_list,
                             album="Unknown Album",
                             acoustid_id=acoustid_id,
                             musicbrainz_trackid=mbid,
@@ -228,6 +228,13 @@ class MusicBrainzProvider(BaseMetadataProvider):
                 mbid = recording.get("id")
                 title = recording.get("title", "")
                 artists = recording.get("artist-credit", [])
+                artist_list = [
+                    (a.get("name") or (a.get("artist", {}).get("name") if isinstance(a.get("artist"), dict) else None) or "").strip()
+                    if isinstance(a, dict)
+                    else str(a).strip()
+                    for a in artists
+                ]
+                artist_list = [a for a in artist_list if a]
                 artist_name = (
                     "".join(
                         [
@@ -263,6 +270,7 @@ class MusicBrainzProvider(BaseMetadataProvider):
                     TrackMetadata(
                         title=title,
                         artist=artist_name,
+                        artists=artist_list,
                         album=album_name,
                         date=date,
                         isrc=isrc,
@@ -304,6 +312,13 @@ class MusicBrainzProvider(BaseMetadataProvider):
                 score = float(rec.get("score", 50)) / 100.0
                 rec_title = rec.get("title", "")
                 credits = rec.get("artist-credit", [])
+                artist_list = [
+                    (c.get("name") or (c.get("artist", {}).get("name") if isinstance(c.get("artist"), dict) else None) or "").strip()
+                    if isinstance(c, dict)
+                    else str(c).strip()
+                    for c in credits
+                ]
+                artist_list = [a for a in artist_list if a]
                 artist_name = (
                     "".join(
                         [
@@ -339,6 +354,7 @@ class MusicBrainzProvider(BaseMetadataProvider):
                     TrackMetadata(
                         title=rec_title,
                         artist=artist_name,
+                        artists=artist_list,
                         album=album_name,
                         date=date,
                         musicbrainz_trackid=rec.get("id"),

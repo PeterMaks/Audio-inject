@@ -117,10 +117,8 @@ class SpotifyProvider(BaseMetadataProvider):
         for item in items:
             name = item.get("name")
             artists = item.get("artists", [])
-            artist_name = (
-                ", ".join([a.get("name", "") for a in artists if a.get("name")])
-                or "Unknown Artist"
-            )
+            artist_list = [a.get("name", "").strip() for a in artists if a.get("name")]
+            artist_name = ", ".join(artist_list) or "Unknown Artist"
 
             if not name:
                 continue
@@ -142,6 +140,7 @@ class SpotifyProvider(BaseMetadataProvider):
             meta = TrackMetadata(
                 title=name,
                 artist=artist_name,
+                artists=artist_list,
                 album=album_name,
                 track_number=track_num,
                 track_total=track_total,

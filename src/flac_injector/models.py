@@ -1,9 +1,10 @@
 """Canonical Pydantic models for FLAC metadata inspection, fingerprinting, and injection."""
 
+import re
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 PLACEHOLDER_TAG_VALUES: set[str] = {
     "unknown",
@@ -17,6 +18,110 @@ PLACEHOLDER_TAG_VALUES: set[str] = {
     "no artist",
     "placeholder",
 }
+
+COMPOUND_ARTISTS: list[str] = sorted(
+    [
+        "crosby, stills, nash & young",
+        "crosby, stills & nash",
+        "earth, wind & fire",
+        "tyler, the creator",
+        "blood, sweat & tears",
+        "emerson, lake & palmer",
+        "huey lewis and the news",
+        "huey lewis & the news",
+        "tom petty and the heartbreakers",
+        "tom petty & the heartbreakers",
+        "bob marley & the wailers",
+        "bob marley and the wailers",
+        "florence + the machine",
+        "florence and the machine",
+        "marina and the diamonds",
+        "kc and the sunshine band",
+        "kc & the sunshine band",
+        "joan jett & the blackhearts",
+        "joan jett and the blackhearts",
+        "sly & the family stone",
+        "sly and the family stone",
+        "gladys knight & the pips",
+        "gladys knight and the pips",
+        "echo & the bunnymen",
+        "echo and the bunnymen",
+        "siouxsie and the banshees",
+        "siouxsie & the banshees",
+        "captain & tennille",
+        "peaches & herb",
+        "brooks & dunn",
+        "dan + shay",
+        "king gizzard & the lizard wizard",
+        "king gizzard and the lizard wizard",
+        "above & beyond",
+        "simon & garfunkel",
+        "hall & oates",
+        "kool & the gang",
+        "ac/dc",
+    ],
+    key=len,
+    reverse=True,
+)
+
+_SPLIT_ARTISTS_RE = re.compile(
+    r";\s*|"
+    r"\s+/\s+|"
+    r"\s*,\s*|"
+    r"\s+(?:feat\.|ft\.|featuring|with|&|\+|vs\.?|[xX])\s+",
+    flags=re.IGNORECASE,
+)
+
+
+def split_artists(raw: str | list[str] | None) -> list[str]:
+    """Split multi-artist strings or lists into distinct individual artists, preserving compound bands."""
+    if not raw:
+        return []
+
+    if isinstance(raw, list):
+        results: list[str] = []
+        for item in raw:
+            results.extend(split_artists(item))
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for r in results:
+            if r.lower() not in seen:
+                seen.add(r.lower())
+                deduped.append(r)
+        return deduped
+
+    text = str(raw).strip()
+    if not text:
+        return []
+
+    # Preserve known compound artist names using placeholder tokens
+    placeholders: dict[str, str] = {}
+    for i, compound in enumerate(COMPOUND_ARTISTS):
+        pattern = re.compile(re.escape(compound), re.IGNORECASE)
+        match = pattern.search(text)
+        if match:
+            token = f"__COMPOUND_{i}__"
+            placeholders[token] = match.group(0)
+            text = pattern.sub(token, text)
+
+    parts = [p.strip() for p in _SPLIT_ARTISTS_RE.split(text) if p.strip()]
+    if not parts:
+        return [str(raw).strip()]
+
+    restored: list[str] = []
+    for p in parts:
+        for token, orig in placeholders.items():
+            p = p.replace(token, orig)
+        if p.strip():
+            restored.append(p.strip())
+
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for p in restored:
+        if p.lower() not in seen:
+            seen.add(p.lower())
+            deduped.append(p)
+    return deduped
 
 
 def resolve_album_name(
@@ -83,6 +188,7 @@ class TrackMetadata(BaseModel):
 
     title: str
     artist: str
+    artists: list[str] = Field(default_factory=list)
     album: str = Field(default="Unknown Album")
     album_artist: str | None = None
     track_number: str | None = None
@@ -118,6 +224,20 @@ class TrackMetadata(BaseModel):
     source_provider: str = "unknown"
     extra_tags: dict[str, str] = Field(default_factory=dict)
 
+    @model_validator(mode="after")
+    def _normalize_artists(self) -> "TrackMetadata":
+        if not self.artists and self.artist:
+            self.artists = split_artists(self.artist)
+        elif self.artists:
+            self.artists = split_artists(self.artists)
+        if self.artists and (not self.artist or self.artist.strip().lower() in PLACEHOLDER_TAG_VALUES):
+            self.artist = ", ".join(self.artists)
+        return self
+
+    def get_artists(self) -> list[str]:
+        """Return parsed list of distinct artists."""
+        return self.artists if self.artists else split_artists(self.artist)
+
     def to_vorbis_comments(self) -> dict[str, list[str]]:
         """Serialize canonical metadata into standardized Vorbis Comment tags."""
         comments: dict[str, list[str]] = {}
@@ -138,10 +258,13 @@ class TrackMetadata(BaseModel):
             if clean_vals:
                 comments[key.upper()] = clean_vals
 
+        artist_list = self.get_artists() or ([self.artist] if self.artist else [])
+        primary_artist = artist_list[0] if artist_list else self.artist
+
         add_tag("TITLE", self.title)
-        add_tag("ARTIST", self.artist)
+        add_multi_tag("ARTIST", artist_list)
         add_tag("ALBUM", self.album)
-        add_tag("ALBUMARTIST", self.album_artist or self.artist)
+        add_tag("ALBUMARTIST", self.album_artist or primary_artist)
 
         if self.track_number:
             add_tag("TRACKNUMBER", self.track_number)
@@ -194,10 +317,13 @@ class TrackMetadata(BaseModel):
         """Serialize canonical metadata into ID3 frame representations."""
         frames: dict[str, Any] = {}
 
+        artist_list = self.get_artists() or ([self.artist] if self.artist else [])
+        primary_artist = artist_list[0] if artist_list else self.artist
+
         frames["TIT2"] = self.title
-        frames["TPE1"] = self.artist
+        frames["TPE1"] = artist_list
         frames["TALB"] = self.album
-        frames["TPE2"] = self.album_artist or self.artist
+        frames["TPE2"] = self.album_artist or primary_artist
 
         if self.track_number:
             frames["TRCK"] = (

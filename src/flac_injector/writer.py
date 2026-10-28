@@ -42,6 +42,7 @@ def inject_metadata(
     cover_art_mime: str | None = None,
     overwrite_existing: bool = False,
     overwrite_art: bool = False,
+    overwrite_tags: list[str] | set[str] | None = None,
 ) -> dict[str, Any]:
     """Inject canonical metadata and cover art into a FLAC, MP3, or WAV audio file."""
     path = Path(file_path).resolve()
@@ -64,6 +65,7 @@ def inject_metadata(
             cover_art_mime,
             overwrite_existing,
             overwrite_art,
+            overwrite_tags,
         )
     elif ext == ".mp3":
         return _inject_mp3(
@@ -73,6 +75,7 @@ def inject_metadata(
             cover_art_mime,
             overwrite_existing,
             overwrite_art,
+            overwrite_tags,
         )
     elif ext in {".wav", ".wave", ".aiff", ".aif"}:
         raise InjectionError(
@@ -88,6 +91,7 @@ def inject_metadata(
             cover_art_mime,
             overwrite_existing,
             overwrite_art,
+            overwrite_tags,
         )
 
 
@@ -98,6 +102,7 @@ def _inject_flac(
     cover_art_mime: str | None,
     overwrite_existing: bool,
     overwrite_art: bool = False,
+    overwrite_tags: list[str] | set[str] | None = None,
 ) -> dict[str, Any]:
     """Inject Vorbis Comments and Picture block into a FLAC file."""
     try:
@@ -109,6 +114,7 @@ def _inject_flac(
 
     vorbis_dict = metadata.to_vorbis_comments()
     tags_injected: list[str] = []
+    clean_overwrite_tags = {t.upper() for t in overwrite_tags} if overwrite_tags else set()
 
     if audio.tags is None:
         audio.add_tags()
@@ -123,7 +129,8 @@ def _inject_flac(
 
     for key, values in vorbis_dict.items():
         key_upper = key.upper()
-        if not overwrite_existing and key_upper in audio and audio[key_upper]:
+        force_ow = overwrite_existing or (key_upper in clean_overwrite_tags)
+        if not force_ow and key_upper in audio and audio[key_upper]:
             existing_vals = audio[key_upper]
             # If all existing values are placeholders (e.g. "Unknown Album"), treat as gap to overwrite
             clean_existing = [
@@ -266,15 +273,39 @@ def _apply_id3_tags(
     cover_art_mime: str | None,
     overwrite_existing: bool,
     overwrite_art: bool,
+    overwrite_tags: list[str] | set[str] | None = None,
 ) -> tuple[list[str], bool, dict[str, Any]]:
     """Apply TrackMetadata frames and APIC cover art to an ID3 container."""
     id3_dict = metadata.to_id3_dict()
     tags_injected: list[str] = []
+    clean_overwrite_tags = {t.upper() for t in overwrite_tags} if overwrite_tags else set()
+
+    frame_to_canonical = {
+        "TIT2": "TITLE",
+        "TPE1": "ARTIST",
+        "TALB": "ALBUM",
+        "TPE2": "ALBUMARTIST",
+        "TRCK": "TRACKNUMBER",
+        "TPOS": "DISCNUMBER",
+        "TDRC": "DATE",
+        "TCON": "GENRE",
+        "TSRC": "ISRC",
+        "TBPM": "BPM",
+        "TCOP": "COPYRIGHT",
+        "TCOM": "COMPOSER",
+        "TPUB": "LABEL",
+    }
 
     def set_frame(frame_cls: Any, frame_id: str, value: Any) -> None:
         if value is None:
             return
-        if not overwrite_existing and frame_id in tags:
+        canonical = frame_to_canonical.get(frame_id, frame_id)
+        force_ow = (
+            overwrite_existing
+            or (frame_id in clean_overwrite_tags)
+            or (canonical in clean_overwrite_tags)
+        )
+        if not force_ow and frame_id in tags:
             # Check if current frame value is a placeholder
             curr_text = getattr(tags[frame_id], "text", [])
             clean_curr = [
@@ -314,7 +345,12 @@ def _apply_id3_tags(
     # Add TXXX frames
     for desc, val in id3_dict.get("TXXX", {}).items():
         frame_id = f"TXXX:{desc}"
-        if not overwrite_existing and frame_id in tags:
+        force_ow = (
+            overwrite_existing
+            or (frame_id in clean_overwrite_tags)
+            or ("TXXX" in clean_overwrite_tags)
+        )
+        if not force_ow and frame_id in tags:
             continue
         tags.add(TXXX(encoding=3, desc=desc, text=[str(val)]))
         tags_injected.append(frame_id)
@@ -395,6 +431,7 @@ def _inject_mp3(
     cover_art_mime: str | None,
     overwrite_existing: bool,
     overwrite_art: bool = False,
+    overwrite_tags: list[str] | set[str] | None = None,
 ) -> dict[str, Any]:
     """Inject ID3v2.4 frames and APIC cover art into an MP3 file."""
     try:
@@ -418,6 +455,7 @@ def _inject_mp3(
         cover_art_mime,
         overwrite_existing,
         overwrite_art,
+        overwrite_tags,
     )
 
     try:

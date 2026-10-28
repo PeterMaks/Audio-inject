@@ -117,3 +117,31 @@ def test_inject_wav_fails_with_instruction(untagged_wav: Path) -> None:
     meta = TrackMetadata(title="Test", artist="Test", album="Test")
     with pytest.raises(InjectionError, match="convert"):
         inject_metadata(untagged_wav, meta)
+
+
+def test_inject_multi_artist_mp3(tmp_path: Path) -> None:
+    """Test that multiple collaborating artists are injected as distinct ID3 TPE1 entries."""
+    mp3_file = tmp_path / "collab.mp3"
+    generate_mp3_audio(mp3_file, duration_seconds=2)
+
+    meta = TrackMetadata(
+        title="Stay",
+        artist="The Kid LAROI, Justin Bieber",
+        album="F*CK LOVE 3: OVERKILL",
+    )
+
+    assert meta.artists == ["The Kid LAROI", "Justin Bieber"]
+    id3_dict = meta.to_id3_dict()
+    assert id3_dict["TPE1"] == ["The Kid LAROI", "Justin Bieber"]
+    assert id3_dict["TPE2"] == "The Kid LAROI"
+
+    result = inject_metadata(mp3_file, meta, overwrite_existing=True)
+    assert result["status"] == "success"
+
+    audio = MP3(str(mp3_file), ID3=ID3)
+    assert audio.tags["TPE1"].text == ["The Kid LAROI", "Justin Bieber"]
+    assert audio.tags["TPE2"].text == ["The Kid LAROI"]
+
+    scan = inspect_audio(mp3_file)
+    assert scan.existing_tags["ARTIST"] == ["The Kid LAROI", "Justin Bieber"]
+

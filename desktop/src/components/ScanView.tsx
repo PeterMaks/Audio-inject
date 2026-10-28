@@ -76,7 +76,7 @@ export const ScanView: React.FC<ScanViewProps> = ({
       }
       if (query) {
         const title = item.existing_tags.TITLE?.[0]?.toLowerCase() || "";
-        const artist = item.existing_tags.ARTIST?.[0]?.toLowerCase() || "";
+        const artist = item.existing_tags.ARTIST?.join(" ")?.toLowerCase() || "";
         const album = item.existing_tags.ALBUM?.[0]?.toLowerCase() || "";
         const filename = item.filename.toLowerCase();
         if (
@@ -340,7 +340,7 @@ export const ScanView: React.FC<ScanViewProps> = ({
               paginatedItems.map((item) => {
                 const title = item.existing_tags.TITLE?.[0] || item.filename;
                 const artist =
-                  item.existing_tags.ARTIST?.[0] || "Unknown Artist";
+                  item.existing_tags.ARTIST?.join(", ") || "Unknown Artist";
                 const album = item.existing_tags.ALBUM?.[0] || "—";
                 const isSelected = selectedPaths.has(item.path);
                 const mins = Math.floor(item.duration_seconds / 60);

@@ -13,7 +13,7 @@ from typing import Any
 from rapidfuzz import fuzz
 
 from flac_injector.fingerprint import parse_filename_metadata
-from flac_injector.models import PLACEHOLDER_TAG_VALUES, ScanResult, TrackMetadata, resolve_album_name
+from flac_injector.models import PLACEHOLDER_TAG_VALUES, ScanResult, TrackMetadata, resolve_album_name, split_artists
 from flac_injector.scanner import inspect_audio
 
 logger = logging.getLogger(__name__)
@@ -80,19 +80,15 @@ class SpotifyTrackRecord:
         )
         artists: list[str] = []
         if isinstance(artist_raw, list):
+            raw_items = []
             for item in artist_raw:
                 if isinstance(item, dict) and "name" in item:
-                    artists.append(str(item["name"]).strip())
+                    raw_items.append(str(item["name"]).strip())
                 elif isinstance(item, str) and item.strip():
-                    artists.append(item.strip())
+                    raw_items.append(item.strip())
+            artists = split_artists(raw_items)
         elif isinstance(artist_raw, str) and artist_raw.strip():
-            # Exportify separates multiple artists with semicolon ';', e.g. "YOUTH 83;A.L.I.S.O.N"
-            if ";" in artist_raw:
-                artists = [a.strip() for a in artist_raw.split(";") if a.strip()]
-            elif " / " in artist_raw:
-                artists = [a.strip() for a in artist_raw.split(" / ") if a.strip()]
-            else:
-                artists = [artist_raw.strip()]
+            artists = split_artists(artist_raw)
 
         artist_display = ", ".join(artists) if artists else "Unknown Artist"
 
@@ -442,86 +438,90 @@ def calculate_similarity(
     hints: dict[str, Any],
     record: SpotifyTrackRecord,
 ) -> float:
-    """Calculate normalized similarity ratio (0.0 to 1.0) between an audio file and a Spotify track."""
-    file_title = str(
-        scan.existing_tags.get("TITLE", [""])[0] or hints.get("title") or scan.path.stem
-    ).strip().lower()
-
-    file_artist = str(
-        scan.existing_tags.get("ARTIST", [""])[0] or hints.get("artist") or ""
-    ).strip().lower()
-
-    file_album = str(
-        scan.existing_tags.get("ALBUM", [""])[0] or hints.get("album") or ""
-    ).strip().lower()
-
+    """Calculate normalized similarity ratio (0.0 to 1.0) between an audio file and a Spotify track.
+    
+    Evaluates similarity across both embedded metadata tags and filename-parsed hints,
+    ensuring tracks with missing or corrupt internal tags match by filename.
+    """
     cand_title = record.title.strip().lower()
     cand_artist = record.artist.strip().lower()
     cand_album = record.album.strip().lower()
 
-    # 1. Title Similarity
-    # Compare token_sort_ratio and token_set_ratio (handles feat, remixes, minor word reorderings)
-    t_sort = fuzz.token_sort_ratio(file_title, cand_title) / 100.0
-    t_set = fuzz.token_set_ratio(file_title, cand_title) / 100.0
-    title_sim = max(t_sort, t_set * 0.95)
+    # Filename-derived hints
+    fn_parsed = parse_filename_metadata(scan.path)
+    fn_title = str(hints.get("title") or fn_parsed.get("title") or scan.path.stem).strip().lower()
+    fn_artist = str(hints.get("artist") or fn_parsed.get("artist") or "").strip().lower()
+    fn_album = str(hints.get("album") or fn_parsed.get("album") or "").strip().lower()
 
-    # If title similarity is extremely low, it's not a match
-    if title_sim < 0.25:
-        return 0.0
+    # Tag-derived values
+    tag_title = str(scan.existing_tags.get("TITLE", [""])[0] or "").strip().lower()
+    tag_artist = str(scan.existing_tags.get("ARTIST", [""])[0] or "").strip().lower()
+    tag_album = str(scan.existing_tags.get("ALBUM", [""])[0] or "").strip().lower()
 
-    # 2. Artist Similarity
-    artist_sim = 0.5  # default neutral if file has no artist tag
-    if file_artist and file_artist not in ("unknown", "unknown artist"):
-        a_sort = fuzz.token_sort_ratio(file_artist, cand_artist) / 100.0
-        a_set = fuzz.token_set_ratio(file_artist, cand_artist) / 100.0
-        artist_sim = max(a_sort, a_set * 0.95)
+    def _eval_candidate(f_title: str, f_artist: str, f_album: str) -> float:
+        clean_title = f_title.strip("\"'")
+        if not clean_title or clean_title in PLACEHOLDER_TAG_VALUES:
+            return 0.0
 
-        # Check against individual artists in record
-        for a in record.artists:
-            sub_sim = fuzz.token_sort_ratio(file_artist, a.lower()) / 100.0
-            if sub_sim > artist_sim:
-                artist_sim = sub_sim
-    else:
-        # File has no artist tag; check if filename stem contains artist
-        stem_lower = scan.path.stem.lower()
-        if cand_artist and cand_artist in stem_lower:
-            artist_sim = 0.90
-        elif any(a.lower() in stem_lower for a in record.artists if len(a) > 2):
-            artist_sim = 0.85
+        # 1. Title Similarity
+        t_sort = fuzz.token_sort_ratio(clean_title, cand_title) / 100.0
+        t_set = fuzz.token_set_ratio(clean_title, cand_title) / 100.0
+        title_sim = max(t_sort, t_set * 0.95)
 
-    # 3. Album Similarity
-    album_sim = 0.8  # neutral default
-    is_file_album_valid = file_album and file_album not in (
-        "unknown", "unknown album", "untitled", "none", "no album"
-    )
-    is_cand_album_valid = cand_album and cand_album not in (
-        "unknown", "unknown album", "untitled", ""
-    )
+        if title_sim < 0.25:
+            return 0.0
 
-    if is_file_album_valid and is_cand_album_valid:
-        album_sim = fuzz.token_sort_ratio(file_album, cand_album) / 100.0
+        # 2. Artist Similarity
+        clean_artist = f_artist.strip("\"'")
+        artist_sim = 0.5
+        if clean_artist and clean_artist not in PLACEHOLDER_TAG_VALUES:
+            a_sort = fuzz.token_sort_ratio(clean_artist, cand_artist) / 100.0
+            a_set = fuzz.token_set_ratio(clean_artist, cand_artist) / 100.0
+            artist_sim = max(a_sort, a_set * 0.95)
+            for a in record.artists:
+                sub_sim = fuzz.token_sort_ratio(clean_artist, a.lower()) / 100.0
+                if sub_sim > artist_sim:
+                    artist_sim = sub_sim
+        else:
+            stem_lower = scan.path.stem.lower()
+            if cand_artist and cand_artist in stem_lower:
+                artist_sim = 0.90
+            elif any(a.lower() in stem_lower for a in record.artists if len(a) > 2):
+                artist_sim = 0.85
 
-    # Base weighted textual score
-    if file_artist:
-        base_score = (0.50 * title_sim) + (0.35 * artist_sim) + (0.15 * album_sim)
-    else:
-        base_score = (0.65 * title_sim) + (0.25 * artist_sim) + (0.10 * album_sim)
+        # 3. Album Similarity
+        album_sim = 0.8
+        clean_album = f_album.strip("\"'")
+        is_file_album_valid = clean_album and clean_album not in PLACEHOLDER_TAG_VALUES
+        is_cand_album_valid = cand_album and cand_album not in PLACEHOLDER_TAG_VALUES
+        if is_file_album_valid and is_cand_album_valid:
+            album_sim = fuzz.token_sort_ratio(clean_album, cand_album) / 100.0
 
-    # 4. Duration Comparison
-    if scan.duration_seconds > 0 and record.duration_seconds:
-        delta = abs(scan.duration_seconds - record.duration_seconds)
-        if delta <= 1.5:
-            base_score = min(1.0, base_score + 0.08)
-        elif delta <= 4.0:
-            base_score = min(1.0, base_score + 0.04)
-        elif delta > 20.0:
-            # If title and artist are strong matches (>= 0.85), cap penalty to 0.15
-            # (common for radio edits, extended mixes, trimmed audio, or synthetic samples)
-            max_penalty = 0.15 if (title_sim >= 0.85 and artist_sim >= 0.85) else 0.35
-            penalty = min(max_penalty, (delta - 20.0) / 40.0)
-            base_score = max(0.0, base_score - penalty)
+        # Base weighted textual score
+        if clean_artist and clean_artist not in PLACEHOLDER_TAG_VALUES:
+            base_score = (0.50 * title_sim) + (0.35 * artist_sim) + (0.15 * album_sim)
+        else:
+            base_score = (0.65 * title_sim) + (0.25 * artist_sim) + (0.10 * album_sim)
 
-    return round(min(1.0, max(0.0, base_score)), 3)
+        # 4. Duration Comparison
+        if scan.duration_seconds > 0 and record.duration_seconds:
+            delta = abs(scan.duration_seconds - record.duration_seconds)
+            if delta <= 1.5:
+                base_score = min(1.0, base_score + 0.08)
+            elif delta <= 4.0:
+                base_score = min(1.0, base_score + 0.04)
+            elif delta > 20.0:
+                max_penalty = 0.15 if (title_sim >= 0.85 and artist_sim >= 0.85) else 0.35
+                penalty = min(max_penalty, (delta - 20.0) / 40.0)
+                base_score = max(0.0, base_score - penalty)
+
+        return round(min(1.0, max(0.0, base_score)), 3)
+
+    score_tags = _eval_candidate(tag_title, tag_artist, tag_album) if tag_title else 0.0
+    score_filename = _eval_candidate(fn_title, fn_artist, fn_album)
+    score_stem = _eval_candidate(scan.path.stem.lower(), "", "")
+
+    return max(score_tags, score_filename, score_stem)
 
 
 @dataclass
@@ -544,19 +544,14 @@ def match_file_to_spotify(
     threshold: float = 0.70,
     overwrite: bool = False,
     scan_result: ScanResult | None = None,
+    overwrite_mismatched: bool = True,
+    mismatch_threshold: float = 0.70,
 ) -> MatchResult:
     """Compare a single audio file against Spotify records and generate the enriched metadata."""
     if not scan_result:
         scan_result = inspect_audio(file_path)
 
     hints = parse_filename_metadata(file_path)
-    if scan_result.existing_tags.get("TITLE"):
-        hints["title"] = scan_result.existing_tags["TITLE"][0]
-    if scan_result.existing_tags.get("ARTIST"):
-        hints["artist"] = scan_result.existing_tags["ARTIST"][0]
-    if scan_result.existing_tags.get("ALBUM"):
-        hints["album"] = scan_result.existing_tags["ALBUM"][0]
-
     best_record: SpotifyTrackRecord | None = None
     best_score = 0.0
 
@@ -580,8 +575,35 @@ def match_file_to_spotify(
     gaps_filled: list[str] = []
     overwritten: list[str] = []
 
+    # Check whether the file's existing tags meet similarity to the matched Spotify track
+    curr_raw_title = existing.get("TITLE", [""])[0] if existing.get("TITLE") else ""
+    curr_raw_artist = existing.get("ARTIST", [""])[0] if existing.get("ARTIST") else ""
+
+    title_matches = False
+    if curr_raw_title and curr_raw_title.lower().strip("\"'") not in PLACEHOLDER_TAG_VALUES:
+        title_matches = (
+            fuzz.token_set_ratio(curr_raw_title.lower(), best_record.title.lower()) >= mismatch_threshold * 100
+        )
+
+    artist_matches = False
+    if curr_raw_artist and curr_raw_artist.lower().strip("\"'") not in PLACEHOLDER_TAG_VALUES:
+        a_sims = [fuzz.token_set_ratio(curr_raw_artist.lower(), best_record.artist.lower())]
+        for a in best_record.artists:
+            a_sims.append(fuzz.token_set_ratio(curr_raw_artist.lower(), a.lower()))
+        artist_matches = max(a_sims) >= mismatch_threshold * 100
+
+    # If the file's existing artist or song name does not meet similarity to the matched track
+    is_file_mismatched = bool(
+        overwrite_mismatched and (not title_matches or not artist_matches)
+    )
+
     # Helper to resolve field: fill gap or overwrite
-    def pick_str(tag_name: str, spotify_val: str | None, current_val: str | None) -> str | None:
+    def pick_str(
+        tag_name: str,
+        spotify_val: str | None,
+        current_val: str | None,
+        is_identity_field: bool = False,
+    ) -> str | None:
         curr = (current_val or "").strip()
         is_unknown = not curr or curr.lower().strip("\"'") in PLACEHOLDER_TAG_VALUES
         if spotify_val and str(spotify_val).strip():
@@ -592,11 +614,27 @@ def match_file_to_spotify(
             elif overwrite and clean_spotify.lower() != curr.lower():
                 overwritten.append(tag_name)
                 return clean_spotify
+            elif (
+                is_file_mismatched
+                and (is_identity_field or tag_name == "ALBUM")
+                and clean_spotify.lower() != curr.lower()
+            ):
+                overwritten.append(tag_name)
+                return clean_spotify
         return curr if (curr and not is_unknown) else None
 
-    target_title = pick_str("TITLE", best_record.title, existing.get("TITLE", [""])[0]) or best_record.title
-    target_artist = pick_str("ARTIST", best_record.artist, existing.get("ARTIST", [""])[0]) or best_record.artist
-    target_album = pick_str("ALBUM", best_record.album, existing.get("ALBUM", [""])[0]) or best_record.album
+    target_title = (
+        pick_str("TITLE", best_record.title, existing.get("TITLE", [""])[0], is_identity_field=True)
+        or best_record.title
+    )
+    target_artist = (
+        pick_str("ARTIST", best_record.artist, existing.get("ARTIST", [""])[0], is_identity_field=True)
+        or best_record.artist
+    )
+    target_album = (
+        pick_str("ALBUM", best_record.album, existing.get("ALBUM", [""])[0])
+        or best_record.album
+    )
     target_album = resolve_album_name(
         album=target_album,
         title=target_title,
@@ -697,6 +735,7 @@ def match_file_to_spotify(
     metadata = TrackMetadata(
         title=target_title,
         artist=target_artist,
+        artists=best_record.artists or split_artists(target_artist),
         album=target_album,
         album_artist=target_album_artist,
         date=target_date,

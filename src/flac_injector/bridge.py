@@ -882,6 +882,7 @@ async def run_match_spotify_command(
                             cover_art_mime=art_mime,
                             overwrite_existing=overwrite,
                             overwrite_art=overwrite_art,
+                            overwrite_tags=match_res.overwritten_tags,
                         )
                         matched_count += 1
                         items_result.append({

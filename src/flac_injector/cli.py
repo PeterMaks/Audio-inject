@@ -628,6 +628,13 @@ def match_spotify(
             help="Overwrite existing non-empty tags instead of only filling missing gaps.",
         ),
     ] = False,
+    overwrite_mismatched: Annotated[
+        bool,
+        typer.Option(
+            "--overwrite-mismatched/--no-overwrite-mismatched",
+            help="Overwrite existing metadata tags (artist, title, album) if they do not match or have low similarity to the filename / Spotify track.",
+        ),
+    ] = True,
     overwrite_art: Annotated[
         bool,
         typer.Option(
@@ -763,6 +770,7 @@ def match_spotify(
                     threshold=threshold,
                     overwrite=overwrite,
                     scan_result=scan_res,
+                    overwrite_mismatched=overwrite_mismatched,
                 )
 
                 if match_res.is_match and match_res.spotify_record and match_res.metadata_to_inject:
@@ -774,7 +782,7 @@ def match_spotify(
                     if match_res.missing_gaps_filled:
                         gaps_desc.append(f"[green]+{len(match_res.missing_gaps_filled)} gaps[/green] ({', '.join(match_res.missing_gaps_filled[:3])})")
                     if match_res.overwritten_tags:
-                        gaps_desc.append(f"[yellow]~{len(match_res.overwritten_tags)} overwrites[/yellow]")
+                        gaps_desc.append(f"[yellow]~{len(match_res.overwritten_tags)} overwrites[/yellow] ({', '.join(match_res.overwritten_tags[:3])})")
                     actions_str = " | ".join(gaps_desc) if gaps_desc else "[dim]No new tags[/dim]"
 
                     # Cover art fetching if requested
@@ -797,6 +805,7 @@ def match_spotify(
                             cover_art_mime=art_mime,
                             overwrite_existing=overwrite,
                             overwrite_art=overwrite_art,
+                            overwrite_tags=match_res.overwritten_tags,
                         )
                         status = "[bold green]INJECTED[/bold green]"
 
@@ -870,6 +879,13 @@ def import_spotify(
             help="Overwrite existing non-empty tags instead of only filling missing gaps.",
         ),
     ] = False,
+    overwrite_mismatched: Annotated[
+        bool,
+        typer.Option(
+            "--overwrite-mismatched/--no-overwrite-mismatched",
+            help="Overwrite existing metadata tags (artist, title, album) if they do not match or have low similarity to the filename / Spotify track.",
+        ),
+    ] = True,
     overwrite_art: Annotated[
         bool,
         typer.Option(
@@ -904,6 +920,7 @@ def import_spotify(
         threshold=threshold,
         dry_run=dry_run,
         overwrite=overwrite,
+        overwrite_mismatched=overwrite_mismatched,
         overwrite_art=overwrite_art,
         fetch_art=fetch_art,
         convert_wav=convert_wav,

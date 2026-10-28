@@ -110,7 +110,7 @@ export const InspectDrawer: React.FC<InspectDrawerProps> = ({
                   {item.existing_tags.TITLE?.[0] || item.filename}
                 </h2>
                 <p className="text-xs text-[#86868B] truncate">
-                  {item.existing_tags.ARTIST?.[0] || "Unknown Artist"}
+                  {item.existing_tags.ARTIST?.join(", ") || "Unknown Artist"}
                 </p>
               </div>
               <div className="flex items-center space-x-1.5 shrink-0">

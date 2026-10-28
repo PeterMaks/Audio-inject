@@ -8,26 +8,49 @@ import {
   Fingerprint,
   Copy,
   Check,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { FingerprintResponse, ScanItem } from "../types/injector";
 import { runFingerprint } from "../lib/tauriClient";
 
 interface InspectDrawerProps {
   item: ScanItem | null;
+  currentIndex?: number;
+  totalCount?: number;
   onClose: () => void;
   onInject: (item: ScanItem) => void;
+  onNavigate?: (direction: "prev" | "next") => void;
 }
 
 export const InspectDrawer: React.FC<InspectDrawerProps> = ({
   item,
+  currentIndex = 0,
+  totalCount = 0,
   onClose,
   onInject,
+  onNavigate,
 }) => {
   const [zoomArt, setZoomArt] = useState(false);
   const [fpData, setFpData] = useState<FingerprintResponse | null>(null);
   const [fpLoading, setFpLoading] = useState(false);
   const [fpError, setFpError] = useState<string | null>(null);
   const [copiedFp, setCopiedFp] = useState(false);
+
+  useEffect(() => {
+    if (!item) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      } else if (e.key === "ArrowLeft") {
+        onNavigate?.("prev");
+      } else if (e.key === "ArrowRight") {
+        onNavigate?.("next");
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [item, onClose, onNavigate]);
 
   useEffect(() => {
     setFpData(null);
@@ -90,12 +113,36 @@ export const InspectDrawer: React.FC<InspectDrawerProps> = ({
                   {item.existing_tags.ARTIST?.[0] || "Unknown Artist"}
                 </p>
               </div>
-              <button
-                onClick={onClose}
-                className="w-8 h-8 rounded-full bg-white/[0.08] hover:bg-white/[0.15] active:scale-[0.95] flex items-center justify-center text-[#86868B] hover:text-[#F5F5F7] transition-all shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center space-x-1.5 shrink-0">
+                {totalCount > 1 && (
+                  <div className="flex items-center space-x-1 mr-2 text-[11px] text-[#86868B]">
+                    <span className="tabular-nums font-medium mr-1 text-[#F5F5F7]">
+                      {currentIndex + 1} of {totalCount}
+                    </span>
+                    <button
+                      onClick={() => onNavigate?.("prev")}
+                      title="Previous Track (←)"
+                      className="w-7 h-7 rounded-full bg-white/[0.08] hover:bg-white/[0.15] active:scale-[0.95] flex items-center justify-center text-[#86868B] hover:text-[#F5F5F7] transition-all"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => onNavigate?.("next")}
+                      title="Next Track (→)"
+                      className="w-7 h-7 rounded-full bg-white/[0.08] hover:bg-white/[0.15] active:scale-[0.95] flex items-center justify-center text-[#86868B] hover:text-[#F5F5F7] transition-all"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={onClose}
+                  className="w-8 h-8 rounded-full bg-white/[0.08] hover:bg-white/[0.15] active:scale-[0.95] flex items-center justify-center text-[#86868B] hover:text-[#F5F5F7] transition-all shrink-0"
+                  title="Close Inspector (Esc)"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Scrollable Inspector Body */}

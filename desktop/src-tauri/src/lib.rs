@@ -46,6 +46,10 @@ fn find_workspace_root() -> PathBuf {
 fn find_python_executable(root: &Path) -> PathBuf {
     #[cfg(target_os = "windows")]
     {
+        let venv_pyw = root.join(".venv").join("Scripts").join("pythonw.exe");
+        if venv_pyw.exists() {
+            return venv_pyw;
+        }
         let venv_py = root.join(".venv").join("Scripts").join("python.exe");
         if venv_py.exists() {
             return venv_py;
@@ -62,11 +66,22 @@ fn find_python_executable(root: &Path) -> PathBuf {
 
     if let Ok(venv_env) = std::env::var("VIRTUAL_ENV") {
         #[cfg(target_os = "windows")]
-        let venv_py = PathBuf::from(&venv_env).join("Scripts").join("python.exe");
+        {
+            let venv_pyw = PathBuf::from(&venv_env).join("Scripts").join("pythonw.exe");
+            if venv_pyw.exists() {
+                return venv_pyw;
+            }
+            let venv_py = PathBuf::from(&venv_env).join("Scripts").join("python.exe");
+            if venv_py.exists() {
+                return venv_py;
+            }
+        }
         #[cfg(not(target_os = "windows"))]
-        let venv_py = PathBuf::from(&venv_env).join("bin").join("python");
-        if venv_py.exists() {
-            return venv_py;
+        {
+            let venv_py = PathBuf::from(&venv_env).join("bin").join("python");
+            if venv_py.exists() {
+                return venv_py;
+            }
         }
     }
 

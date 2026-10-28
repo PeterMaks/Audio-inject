@@ -1,6 +1,7 @@
 """AcoustID / Chromaprint audio fingerprinting and fallback filepath parser."""
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -36,16 +37,18 @@ def generate_fingerprint(
     file_path: Path | str,
     fpcalc_path: str | None = None,
 ) -> FingerprintResult:
-    """Generate Chromaprint fingerprint and duration from an audio file.
-
-    Tries fpcalc binary first, falls back to pyacoustid library if available.
-    """
+    """Generate Chromaprint fingerprint and duration from an audio file using fpcalc."""
     path = Path(file_path).resolve()
     if not path.is_file():
         raise FileNotFoundError(f"File not found: {path}")
 
     settings = get_settings()
-    binary = fpcalc_path or settings.fpcalc_path
+    binary = (
+        fpcalc_path
+        or os.environ.get("FPCALC_PATH")
+        or os.environ.get("FPCALC")
+        or settings.fpcalc_path
+    )
 
     # Check if fpcalc is available in PATH or specified directly
     fpcalc_bin = shutil.which(binary) or (Path(binary).exists() and binary)
@@ -58,42 +61,34 @@ def generate_fingerprint(
                     fpcalc_bin = str(candidate)
                     break
 
-    if fpcalc_bin:
-        try:
-            cmd = [str(fpcalc_bin), "-json", str(path)]
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=30,
-                **get_windows_headless_kwargs(),
-            )
-            if proc.returncode == 0:
-                data = json.loads(proc.stdout)
-                duration = float(data.get("duration", 0.0))
-                fingerprint = str(data.get("fingerprint", ""))
-                if fingerprint:
-                    return FingerprintResult(fingerprint=fingerprint, duration=duration)
-        except Exception:
-            pass
+    if not fpcalc_bin:
+        raise FingerprintError(
+            f"Chromaprint fpcalc binary not found for {path}. Please install fpcalc or chromaprint."
+        )
 
-    # Fallback to pyacoustid (uses subprocess.Popen internally).
-    # The global Popen monkey-patch adds CREATE_NO_WINDOW + SW_HIDE; re-apply
-    # it here in case a frozen PyInstaller build lost the patch.
     try:
-        install_windows_headless_subprocess_patch()
-        import acoustid
-
-        duration, fingerprint = acoustid.fingerprint_file(str(path))
-        return FingerprintResult(
-            fingerprint=fingerprint.decode("utf-8")
-            if isinstance(fingerprint, bytes)
-            else str(fingerprint),
-            duration=float(duration),
+        cmd = [str(fpcalc_bin), "-json", str(path)]
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+            **get_windows_headless_kwargs(),
+        )
+        if proc.returncode == 0:
+            data = json.loads(proc.stdout)
+            duration = float(data.get("duration", 0.0))
+            fingerprint = str(data.get("fingerprint", ""))
+            if fingerprint:
+                return FingerprintResult(fingerprint=fingerprint, duration=duration)
+        raise FingerprintError(
+            f"fpcalc failed with exit code {proc.returncode}: {proc.stderr.strip()}"
         )
     except Exception as e:
-        raise FingerprintError(f"Failed to generate fingerprint for {path}: {e}") from e
+        if not isinstance(e, FingerprintError):
+            raise FingerprintError(f"Failed to generate fingerprint for {path}: {e}") from e
+        raise
 
 
 def parse_filename_metadata(file_path: Path | str) -> dict[str, Any]:

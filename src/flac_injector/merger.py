@@ -5,7 +5,7 @@ from typing import Any
 from rapidfuzz import fuzz
 
 from flac_injector.artwork import verify_artwork_candidate
-from flac_injector.models import TrackMetadata
+from flac_injector.models import TrackMetadata, resolve_album_name
 
 
 def calculate_confidence(
@@ -213,6 +213,13 @@ def aggregate_candidates(
                 merged.cover_art_url = cand.cover_art_url
                 merged.cover_art_width = cand.cover_art_width
                 merged.cover_art_height = cand.cover_art_height
+
+    # Canonical album resolution: data album -> single label ('{title} - Single') -> 'Unknown Album'
+    merged.album = resolve_album_name(
+        album=merged.album,
+        title=merged.title,
+        total_tracks=merged.track_total,
+    )
 
     merged.confidence_score = best_score
     return merged

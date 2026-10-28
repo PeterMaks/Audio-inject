@@ -17,6 +17,11 @@ import warnings
 from pathlib import Path
 from typing import Any
 
+from flac_injector.subprocess_patch import install_windows_headless_subprocess_patch
+
+# Ensure all child subprocesses on Windows are silent and detached from console
+install_windows_headless_subprocess_patch()
+
 from mutagen.flac import FLAC
 from mutagen.mp3 import MP3
 
@@ -33,6 +38,7 @@ from flac_injector.providers.musicbrainz import MusicBrainzProvider
 from flac_injector.providers.songlink import SonglinkProvider
 from flac_injector.providers.spotify import SpotifyProvider
 from flac_injector.scanner import inspect_audio, scan_path
+from flac_injector.spotify_import import load_spotify_data, match_file_to_spotify
 from flac_injector.writer import inject_metadata
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -729,6 +735,203 @@ async def run_inject_command(
     }
 
 
+async def run_match_spotify_command(
+    paths: list[str],
+    data_path: str,
+    threshold: float = 0.70,
+    dry_run: bool = False,
+    overwrite: bool = False,
+    overwrite_art: bool = False,
+    fetch_art: bool = False,
+    convert_wav: bool = True,
+    recursive: bool = True,
+) -> dict[str, Any]:
+    """Match audio files against a Spotify CSV or JSON export and fill metadata gaps."""
+    spotify_file = Path(data_path).resolve()
+    if not spotify_file.exists():
+        raise FileNotFoundError(f"Spotify data file not found: {data_path}")
+
+    spotify_records = load_spotify_data(spotify_file)
+    if not spotify_records:
+        return {
+            "processed": 0,
+            "matched": 0,
+            "skipped": 0,
+            "failed": 0,
+            "records_loaded": 0,
+            "items": [],
+        }
+
+    allowed_exts = {".flac", ".mp3"}
+    if convert_wav:
+        allowed_exts.update({".wav", ".wave", ".aiff", ".aif"})
+
+    target_files: list[Path] = []
+    for p_str in paths:
+        target = Path(p_str).resolve()
+        if not target.exists():
+            continue
+        if target.is_file() and target.suffix.lower() in allowed_exts:
+            target_files.append(target)
+        elif target.is_dir():
+            pattern = "**/*" if recursive else "*"
+            for candidate in sorted(target.glob(pattern)):
+                if candidate.is_file() and candidate.suffix.lower() in allowed_exts:
+                    target_files.append(candidate)
+
+    seen_files: set[str] = set()
+    audio_files: list[Path] = []
+    for f in target_files:
+        norm = str(f)
+        if norm not in seen_files:
+            seen_files.add(norm)
+            audio_files.append(f)
+
+    total_files = len(audio_files)
+    if total_files == 0:
+        return {
+            "processed": 0,
+            "matched": 0,
+            "skipped": 0,
+            "failed": 0,
+            "records_loaded": len(spotify_records),
+            "items": [],
+        }
+
+    matched_count = 0
+    skipped_count = 0
+    failed_count = 0
+    items_result: list[dict[str, Any]] = []
+    settings = get_settings()
+
+    providers = [
+        MusicBrainzProvider(settings=settings),
+        AppleITunesProvider(settings=settings),
+        DeezerProvider(settings=settings),
+        SpotifyProvider(settings=settings),
+    ] if fetch_art else []
+
+    try:
+        for idx, file_path in enumerate(audio_files):
+            file_percent = (idx / total_files) * 100.0
+            emit_progress(
+                stage="match_spotify",
+                file=str(file_path),
+                percent=file_percent,
+                message=f"Matching {file_path.name} against {len(spotify_records)} Spotify tracks...",
+            )
+
+            try:
+                scan_res = inspect_audio(file_path)
+                if scan_res.audio_format in ("wav", "wave", "aiff", "aif"):
+                    if not convert_wav:
+                        skipped_count += 1
+                        items_result.append({
+                            "file": str(file_path),
+                            "status": "skipped",
+                            "reason": "WAV conversion disabled",
+                        })
+                        continue
+                    if dry_run:
+                        emit_progress(
+                            stage="dry_run",
+                            file=str(file_path),
+                            percent=file_percent,
+                            message=f"[DRY-RUN] Would convert {file_path.name} to FLAC",
+                        )
+                    else:
+                        file_path = convert_to_flac(file_path)
+                        scan_res = inspect_audio(file_path)
+
+                match_res = match_file_to_spotify(
+                    file_path=file_path,
+                    spotify_records=spotify_records,
+                    threshold=threshold,
+                    overwrite=overwrite,
+                    scan_result=scan_res,
+                )
+
+                if match_res.is_match and match_res.spotify_record and match_res.metadata_to_inject:
+                    art_bytes = None
+                    art_mime = None
+                    if fetch_art and match_res.metadata_to_inject.cover_art_url and providers:
+                        for p in providers:
+                            art_res = await p.fetch_cover_art(match_res.metadata_to_inject.cover_art_url)
+                            if art_res:
+                                art_bytes, art_mime = art_res
+                                break
+
+                    if dry_run:
+                        matched_count += 1
+                        items_result.append({
+                            "file": str(file_path),
+                            "status": "dry_run",
+                            "matched_title": match_res.spotify_record.title,
+                            "matched_artist": match_res.spotify_record.artist,
+                            "matched_album": match_res.spotify_record.album,
+                            "similarity_score": match_res.similarity_score,
+                            "gaps_filled": match_res.missing_gaps_filled,
+                            "overwritten_tags": match_res.overwritten_tags,
+                            "metadata": serialize_track_metadata(match_res.metadata_to_inject),
+                        })
+                    else:
+                        inject_metadata(
+                            file_path,
+                            match_res.metadata_to_inject,
+                            cover_art_bytes=art_bytes,
+                            cover_art_mime=art_mime,
+                            overwrite_existing=overwrite,
+                            overwrite_art=overwrite_art,
+                        )
+                        matched_count += 1
+                        items_result.append({
+                            "file": str(file_path),
+                            "status": "injected",
+                            "matched_title": match_res.spotify_record.title,
+                            "matched_artist": match_res.spotify_record.artist,
+                            "matched_album": match_res.spotify_record.album,
+                            "similarity_score": match_res.similarity_score,
+                            "gaps_filled": match_res.missing_gaps_filled,
+                            "overwritten_tags": match_res.overwritten_tags,
+                            "metadata": serialize_track_metadata(match_res.metadata_to_inject),
+                        })
+                else:
+                    skipped_count += 1
+                    items_result.append({
+                        "file": str(file_path),
+                        "status": "skipped",
+                        "similarity_score": match_res.similarity_score,
+                        "best_candidate": match_res.spotify_record.title if match_res.spotify_record else None,
+                        "reason": f"Similarity below threshold ({match_res.similarity_score:.2f} < {threshold:.2f})",
+                    })
+            except Exception as e:
+                failed_count += 1
+                items_result.append({
+                    "file": str(file_path),
+                    "status": "error",
+                    "error": str(e),
+                })
+    finally:
+        for p in providers:
+            await p.close()
+
+    emit_progress(
+        stage="complete",
+        file="",
+        percent=100.0,
+        message=f"Spotify match complete: {matched_count} matched, {skipped_count} skipped, {failed_count} failed.",
+    )
+
+    return {
+        "processed": total_files,
+        "matched": matched_count,
+        "skipped": skipped_count,
+        "failed": failed_count,
+        "records_loaded": len(spotify_records),
+        "items": items_result,
+    }
+
+
 async def run_convert_command(
     paths: list[str],
     output_dir: str | None = None,
@@ -962,19 +1165,23 @@ async def dispatch_command(action: str, params: dict[str, Any]) -> None:
     """Dispatch a single command and emit result or error."""
     try:
         if action == "health":
-            emit_result("health", run_health_check())
+            res = await asyncio.to_thread(run_health_check)
+            emit_result("health", res)
         elif action == "scan":
             paths = params.get("paths", [])
             recursive = params.get("recursive", True)
             only_incomplete = params.get("only_incomplete", False)
-            emit_result("scan", run_scan_command(paths, recursive, only_incomplete))
+            res = await asyncio.to_thread(run_scan_command, paths, recursive, only_incomplete)
+            emit_result("scan", res)
         elif action == "inspect":
             path = params.get("path", "")
             include_art = params.get("include_art_base64", True)
-            emit_result("inspect", run_inspect_command(path, include_art))
+            res = await asyncio.to_thread(run_inspect_command, path, include_art)
+            emit_result("inspect", res)
         elif action == "fingerprint":
             path = params.get("path", "")
-            emit_result("fingerprint", run_fingerprint_command(path))
+            res = await asyncio.to_thread(run_fingerprint_command, path)
+            emit_result("fingerprint", res)
         elif action == "inject":
             paths = params.get("paths", [])
             threshold = float(params.get("threshold", 0.70))
@@ -1013,6 +1220,28 @@ async def dispatch_command(action: str, params: dict[str, Any]) -> None:
                 recursive=recursive,
             )
             emit_result("convert", res)
+        elif action in ("match_spotify", "import_spotify"):
+            paths = params.get("paths", [])
+            data_path = params.get("data_path", "")
+            threshold = float(params.get("threshold", 0.70))
+            dry_run = bool(params.get("dry_run", False))
+            overwrite = bool(params.get("overwrite", False))
+            overwrite_art = bool(params.get("overwrite_art", False))
+            fetch_art = bool(params.get("fetch_art", False))
+            convert_wav = bool(params.get("convert_wav", True))
+            recursive = bool(params.get("recursive", True))
+            res = await run_match_spotify_command(
+                paths=paths,
+                data_path=data_path,
+                threshold=threshold,
+                dry_run=dry_run,
+                overwrite=overwrite,
+                overwrite_art=overwrite_art,
+                fetch_art=fetch_art,
+                convert_wav=convert_wav,
+                recursive=recursive,
+            )
+            emit_result(action, res)
         elif action == "get_env":
             emit_result("get_env", get_env_settings())
         elif action == "set_env":

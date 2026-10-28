@@ -25,9 +25,10 @@ from mutagen.id3 import (
 )
 from mutagen.mp3 import MP3
 from mutagen.mp3 import HeaderNotFoundError as MP3HeaderNotFoundError
+from mutagen.wave import WAVE
 from PIL import Image
 
-from flac_injector.models import TrackMetadata
+from flac_injector.models import PLACEHOLDER_TAG_VALUES, TrackMetadata, resolve_album_name
 
 
 class InjectionError(Exception):
@@ -42,10 +43,17 @@ def inject_metadata(
     overwrite_existing: bool = False,
     overwrite_art: bool = False,
 ) -> dict[str, Any]:
-    """Inject canonical metadata and cover art into a FLAC or MP3 audio file."""
+    """Inject canonical metadata and cover art into a FLAC, MP3, or WAV audio file."""
     path = Path(file_path).resolve()
     if not path.is_file():
         raise FileNotFoundError(f"Target audio file not found: {path}")
+
+    # Ensure canonical album resolution across all file formats
+    metadata.album = resolve_album_name(
+        album=metadata.album,
+        title=metadata.title,
+        total_tracks=metadata.track_total,
+    )
 
     ext = path.suffix.lower()
     if ext == ".flac":
@@ -116,18 +124,25 @@ def _inject_flac(
     for key, values in vorbis_dict.items():
         key_upper = key.upper()
         if not overwrite_existing and key_upper in audio and audio[key_upper]:
-            # Deduplicate existing tag values if they contain duplicate entries
             existing_vals = audio[key_upper]
-            seen_items: set[str] = set()
-            deduped: list[str] = []
-            for item in existing_vals:
-                s = str(item).strip()
-                if s.lower() not in seen_items:
-                    seen_items.add(s.lower())
-                    deduped.append(s)
-            if len(deduped) != len(existing_vals):
-                audio[key_upper] = deduped
-            continue
+            # If all existing values are placeholders (e.g. "Unknown Album"), treat as gap to overwrite
+            clean_existing = [
+                str(v).strip()
+                for v in existing_vals
+                if str(v).strip() and str(v).strip().lower().strip("\"'") not in PLACEHOLDER_TAG_VALUES
+            ]
+            if clean_existing:
+                # Deduplicate existing tag values if they contain duplicate entries
+                seen_items: set[str] = set()
+                deduped: list[str] = []
+                for item in existing_vals:
+                    s = str(item).strip()
+                    if s.lower() not in seen_items:
+                        seen_items.add(s.lower())
+                        deduped.append(s)
+                if len(deduped) != len(existing_vals):
+                    audio[key_upper] = deduped
+                continue
 
         audio[key_upper] = values
         tags_injected.append(key_upper)
@@ -243,29 +258,16 @@ def _inject_flac(
     }
 
 
-def _inject_mp3(
-    path: Path,
+def _apply_id3_tags(
+    tags: Any,
     metadata: TrackMetadata,
+    path: Path,
     cover_art_bytes: bytes | None,
     cover_art_mime: str | None,
     overwrite_existing: bool,
-    overwrite_art: bool = False,
-) -> dict[str, Any]:
-    """Inject ID3v2.4 frames and APIC cover art into an MP3 file."""
-    try:
-        audio = MP3(str(path), ID3=ID3)
-    except MP3HeaderNotFoundError as e:
-        raise InjectionError(f"File is not a valid MP3 audio file: {path}") from e
-    except Exception as e:
-        raise InjectionError(f"Failed to open MP3 file for writing: {path} ({e})") from e
-
-    if audio.tags is None:
-        try:
-            audio.add_tags()
-        except Exception:
-            audio.tags = ID3()
-
-    tags = audio.tags
+    overwrite_art: bool,
+) -> tuple[list[str], bool, dict[str, Any]]:
+    """Apply TrackMetadata frames and APIC cover art to an ID3 container."""
     id3_dict = metadata.to_id3_dict()
     tags_injected: list[str] = []
 
@@ -273,7 +275,15 @@ def _inject_mp3(
         if value is None:
             return
         if not overwrite_existing and frame_id in tags:
-            return
+            # Check if current frame value is a placeholder
+            curr_text = getattr(tags[frame_id], "text", [])
+            clean_curr = [
+                str(t).strip()
+                for t in curr_text
+                if str(t).strip() and str(t).strip().lower().strip("\"'") not in PLACEHOLDER_TAG_VALUES
+            ]
+            if clean_curr:
+                return  # Genuine frame value exists; preserve it
         if isinstance(value, list):
             seen_items: set[str] = set()
             dedup_val: list[str] = []
@@ -375,6 +385,41 @@ def _inject_mp3(
         except Exception as e:
             raise InjectionError(f"Failed to embed APIC cover art into {path}: {e}") from e
 
+    return tags_injected, art_injected, art_info
+
+
+def _inject_mp3(
+    path: Path,
+    metadata: TrackMetadata,
+    cover_art_bytes: bytes | None,
+    cover_art_mime: str | None,
+    overwrite_existing: bool,
+    overwrite_art: bool = False,
+) -> dict[str, Any]:
+    """Inject ID3v2.4 frames and APIC cover art into an MP3 file."""
+    try:
+        audio = MP3(str(path), ID3=ID3)
+    except MP3HeaderNotFoundError as e:
+        raise InjectionError(f"File is not a valid MP3 audio file: {path}") from e
+    except Exception as e:
+        raise InjectionError(f"Failed to open MP3 file for writing: {path} ({e})") from e
+
+    if audio.tags is None:
+        try:
+            audio.add_tags()
+        except Exception:
+            audio.tags = ID3()
+
+    tags_injected, art_injected, art_info = _apply_id3_tags(
+        audio.tags,
+        metadata,
+        path,
+        cover_art_bytes,
+        cover_art_mime,
+        overwrite_existing,
+        overwrite_art,
+    )
+
     try:
         audio.save(v2_version=4)
     except Exception as e:
@@ -404,6 +449,68 @@ def _inject_mp3(
     return {
         "path": str(path),
         "format": "mp3",
+        "tags_injected": tags_injected,
+        "cover_art_injected": art_injected,
+        "cover_art_info": art_info,
+        "status": "success",
+    }
+
+
+def _inject_wav(
+    path: Path,
+    metadata: TrackMetadata,
+    cover_art_bytes: bytes | None,
+    cover_art_mime: str | None,
+    overwrite_existing: bool,
+    overwrite_art: bool = False,
+) -> dict[str, Any]:
+    """Inject ID3v2.4 frames and APIC cover art into a WAV file."""
+    try:
+        audio = WAVE(str(path))
+    except Exception as e:
+        raise InjectionError(f"File is not a valid WAV audio file: {path}") from e
+
+    if audio.tags is None:
+        try:
+            audio.add_tags()
+        except Exception:
+            pass
+
+    if audio.tags is None:
+        raise InjectionError(f"Failed to initialize ID3 tags for WAV file: {path}")
+
+    tags_injected, art_injected, art_info = _apply_id3_tags(
+        audio.tags,
+        metadata,
+        path,
+        cover_art_bytes,
+        cover_art_mime,
+        overwrite_existing,
+        overwrite_art,
+    )
+
+    try:
+        audio.save(v2_version=4)
+    except Exception as e:
+        raise InjectionError(f"Failed to save WAV ID3 tags to disk: {path} ({e})") from e
+
+    # Read-back verification
+    try:
+        verify_audio = WAVE(str(path))
+        vtags = verify_audio.tags or {}
+        for tag_id in ["TIT2", "TPE1", "TALB"]:
+            if tag_id in tags_injected and tag_id not in vtags:
+                raise InjectionError(
+                    f"Verification failed: WAV Frame {tag_id} missing after write!"
+                )
+    except Exception as e:
+        raise InjectionError(
+            f"Post-injection readback verification failed for WAV {path}: {e}"
+        ) from e
+
+    return {
+        "path": str(path),
+        "format": "wav",
         "tags_injected": tags_injected,
         "cover_art_injected": art_injected,
         "cover_art_info": art_info,
@@ -464,11 +571,14 @@ def clean_embedded_art(file_path: Path | str, dry_run: bool = False) -> dict[str
             "modified": modified,
         }
 
-    elif ext == ".mp3":
+    elif ext in {".mp3", ".wav", ".wave"}:
         try:
-            audio = MP3(str(path), ID3=ID3)
+            if ext == ".mp3":
+                audio = MP3(str(path), ID3=ID3)
+            else:
+                audio = WAVE(str(path))
         except Exception as e:
-            raise InjectionError(f"Cannot open MP3 file {path}: {e}") from e
+            raise InjectionError(f"Cannot open {ext.upper()} file {path}: {e}") from e
 
         tags = audio.tags or {}
         apic_keys = [k for k in tags.keys() if k.startswith("APIC")]
@@ -489,7 +599,7 @@ def clean_embedded_art(file_path: Path | str, dry_run: bool = False) -> dict[str
 
         return {
             "path": str(path),
-            "format": "mp3",
+            "format": ext.lstrip("."),
             "pictures_before": pics_before,
             "pictures_after": 1 if pics_before > 1 else pics_before,
             "legacy_tags_removed": [],

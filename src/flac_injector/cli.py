@@ -5,6 +5,11 @@ import sys
 from pathlib import Path
 from typing import Annotated, Any
 
+from flac_injector.subprocess_patch import install_windows_headless_subprocess_patch
+
+# Ensure all child subprocesses on Windows are silent and detached from console
+install_windows_headless_subprocess_patch()
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -24,6 +29,7 @@ from flac_injector.providers.musicbrainz import MusicBrainzProvider
 from flac_injector.providers.songlink import SonglinkProvider
 from flac_injector.providers.spotify import SpotifyProvider
 from flac_injector.scanner import inspect_audio, scan_path
+from flac_injector.spotify_import import load_spotify_data, match_file_to_spotify
 from flac_injector.writer import clean_embedded_art, inject_metadata
 
 if sys.platform == "win32":
@@ -591,6 +597,318 @@ def inject(
                 await p.close()
 
     asyncio.run(_run_all())
+
+
+@app.command(name="match-spotify")
+def match_spotify(
+    target: Annotated[
+        Path,
+        typer.Argument(help="Path to an audio file or directory (FLAC, MP3, WAV)."),
+    ],
+    data_file: Annotated[
+        Path | None,
+        typer.Argument(help="Path to the Spotify CSV or JSON export file."),
+    ] = None,
+    data: Annotated[
+        Path | None,
+        typer.Option("--data", "-d", help="Path to the Spotify CSV or JSON export file."),
+    ] = None,
+    threshold: Annotated[
+        float,
+        typer.Option("--threshold", "-t", help="Minimum similarity threshold (0.0 to 1.0, default 0.70)."),
+    ] = 0.70,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Preview matches and metadata updates without modifying files."),
+    ] = False,
+    overwrite: Annotated[
+        bool,
+        typer.Option(
+            "--overwrite",
+            help="Overwrite existing non-empty tags instead of only filling missing gaps.",
+        ),
+    ] = False,
+    overwrite_art: Annotated[
+        bool,
+        typer.Option(
+            "--overwrite-art",
+            help="Force overwriting album art if cover art is available from matched Spotify data.",
+        ),
+    ] = False,
+    fetch_art: Annotated[
+        bool,
+        typer.Option(
+            "--fetch-art",
+            help="Attempt to fetch cover art from metadata providers for matched tracks.",
+        ),
+    ] = False,
+    convert_wav: Annotated[
+        bool,
+        typer.Option(
+            "--convert-wav/--no-convert-wav",
+            help="Auto-convert WAV files to FLAC before matching.",
+        ),
+    ] = True,
+    recursive: Annotated[
+        bool,
+        typer.Option("--recursive/--no-recursive", "-r", help="Recurse into subdirectories."),
+    ] = True,
+) -> None:
+    """Compare and match audio files against exported Spotify data (CSV or JSON) and fill metadata gaps."""
+    # 1. Resolve data file path
+    spotify_data_path = data or data_file
+    if not spotify_data_path:
+        console.print(
+            "[bold red]Error:[/bold red] Please specify a valid Spotify CSV or JSON export file "
+            "as an argument or via [bold]--data / -d[/bold]."
+        )
+        raise typer.Exit(code=1)
+
+    if not spotify_data_path.exists():
+        console.print(f"[bold red]Spotify data file not found:[/bold red] {spotify_data_path}")
+        raise typer.Exit(code=1)
+
+    # 2. Check target path
+    if not target.exists():
+        console.print(f"[bold red]Target path does not exist:[/bold red] {target}")
+        raise typer.Exit(code=1)
+
+    # 3. Load Spotify records
+    try:
+        spotify_records = load_spotify_data(spotify_data_path)
+    except Exception as exc:
+        console.print(f"[bold red]Failed to parse Spotify export file:[/bold red] {exc}")
+        raise typer.Exit(code=1)
+
+    if not spotify_records:
+        console.print(f"[bold yellow]No valid track records found in:[/bold yellow] {spotify_data_path}")
+        return
+
+    console.print(
+        Panel(
+            f"Loaded [bold green]{len(spotify_records)}[/bold green] track records from "
+            f"[bold]{spotify_data_path.name}[/bold]\n"
+            f"Matching against: [bold]{target}[/bold] (Similarity Threshold: [bold cyan]{threshold:.2f}[/bold cyan])\n"
+            f"Mode: [bold]{'FULL OVERWRITE' if overwrite else 'FILL METADATA GAPS ONLY'}[/bold]"
+            f"{' [bold yellow][DRY-RUN PREVIEW][/bold yellow]' if dry_run else ''}",
+            title="Spotify Metadata Matcher",
+            expand=False,
+        )
+    )
+
+    # 4. Enumerate audio files
+    allowed_exts = {".flac", ".mp3"}
+    if convert_wav:
+        allowed_exts.update({".wav", ".wave", ".aiff", ".aif"})
+
+    if target.is_file():
+        audio_files = [target] if target.suffix.lower() in allowed_exts else []
+    else:
+        glob_pat = "**/*" if recursive else "*"
+        audio_files = [
+            p for p in sorted(target.glob(glob_pat))
+            if p.is_file() and p.suffix.lower() in allowed_exts
+        ]
+
+    if not audio_files:
+        console.print("[yellow]No supported audio files found to match.[/yellow]")
+        return
+
+    # 5. Matching & Injection Process
+    matched_count = 0
+    skipped_count = 0
+    total_gaps_filled = 0
+
+    table = Table(
+        title=f"Spotify Track Matching ({len(audio_files)} files vs {len(spotify_records)} records)",
+        header_style="bold cyan",
+    )
+    table.add_column("Audio File", style="dim", no_wrap=True)
+    table.add_column("Similarity", justify="center")
+    table.add_column("Matched Title", style="bold")
+    table.add_column("Matched Artist")
+    table.add_column("Album")
+    table.add_column("Gaps Filled / Overwritten")
+    table.add_column("Status", justify="center")
+
+    settings = get_settings()
+
+    async def _process_files() -> None:
+        nonlocal matched_count, skipped_count, total_gaps_filled
+        providers = [
+            MusicBrainzProvider(settings=settings),
+            AppleITunesProvider(settings=settings),
+            DeezerProvider(settings=settings),
+            SpotifyProvider(settings=settings),
+        ] if fetch_art else []
+
+        art_cache = ArtworkCache() if fetch_art else None
+
+        try:
+            for file_path in audio_files:
+                # WAV conversion check
+                scan_res = inspect_audio(file_path)
+                if scan_res.audio_format in ("wav", "wave", "aiff", "aif"):
+                    if not convert_wav:
+                        continue
+                    if dry_run:
+                        console.print(f"[dim cyan][DRY-RUN] Would convert {file_path.name} to FLAC[/dim cyan]")
+                    else:
+                        file_path = convert_to_flac(file_path)
+                        scan_res = inspect_audio(file_path)
+
+                match_res = match_file_to_spotify(
+                    file_path=file_path,
+                    spotify_records=spotify_records,
+                    threshold=threshold,
+                    overwrite=overwrite,
+                    scan_result=scan_res,
+                )
+
+                if match_res.is_match and match_res.spotify_record and match_res.metadata_to_inject:
+                    matched_count += 1
+                    total_gaps_filled += len(match_res.missing_gaps_filled)
+                    score_pct = f"{match_res.similarity_score * 100:.1f}%"
+
+                    gaps_desc: list[str] = []
+                    if match_res.missing_gaps_filled:
+                        gaps_desc.append(f"[green]+{len(match_res.missing_gaps_filled)} gaps[/green] ({', '.join(match_res.missing_gaps_filled[:3])})")
+                    if match_res.overwritten_tags:
+                        gaps_desc.append(f"[yellow]~{len(match_res.overwritten_tags)} overwrites[/yellow]")
+                    actions_str = " | ".join(gaps_desc) if gaps_desc else "[dim]No new tags[/dim]"
+
+                    # Cover art fetching if requested
+                    art_bytes = None
+                    art_mime = None
+                    if fetch_art and match_res.metadata_to_inject.cover_art_url and providers:
+                        for p in providers:
+                            art_res = await p.fetch_cover_art(match_res.metadata_to_inject.cover_art_url)
+                            if art_res:
+                                art_bytes, art_mime = art_res
+                                break
+
+                    if dry_run:
+                        status = "[dim cyan]WOULD INJECT[/dim cyan]"
+                    else:
+                        inject_metadata(
+                            file_path,
+                            match_res.metadata_to_inject,
+                            cover_art_bytes=art_bytes,
+                            cover_art_mime=art_mime,
+                            overwrite_existing=overwrite,
+                            overwrite_art=overwrite_art,
+                        )
+                        status = "[bold green]INJECTED[/bold green]"
+
+                    table.add_row(
+                        file_path.name,
+                        f"[bold green]{score_pct}[/bold green]",
+                        match_res.spotify_record.title,
+                        match_res.spotify_record.artist,
+                        match_res.spotify_record.album,
+                        actions_str,
+                        status,
+                    )
+                else:
+                    skipped_count += 1
+                    best_hint = (
+                        f"{match_res.spotify_record.title} ({match_res.similarity_score * 100:.1f}%)"
+                        if match_res.spotify_record and match_res.similarity_score > 0
+                        else "-"
+                    )
+                    table.add_row(
+                        file_path.name,
+                        f"[dim red]{match_res.similarity_score * 100:.1f}%[/dim red]" if match_res.similarity_score > 0 else "[dim]-[/dim]",
+                        f"[dim]{best_hint}[/dim]",
+                        "-",
+                        "-",
+                        "-",
+                        "[dim yellow]SKIPPED (< threshold)[/dim yellow]",
+                    )
+        finally:
+            for p in providers:
+                await p.close()
+
+    asyncio.run(_process_files())
+
+    console.print(table)
+    summary_text = (
+        f"Processed: [bold]{len(audio_files)}[/bold] file(s)  |  "
+        f"Matched: [bold green]{matched_count}[/bold green]  |  "
+        f"Unmatched / Skipped: [bold yellow]{skipped_count}[/bold yellow]  |  "
+        f"Metadata Gaps Filled: [bold cyan]{total_gaps_filled}[/bold cyan]"
+    )
+    console.print(Panel(summary_text, title="Matching Summary", expand=False))
+
+
+@app.command(name="import-spotify")
+def import_spotify(
+    target: Annotated[
+        Path,
+        typer.Argument(help="Path to an audio file or directory (FLAC, MP3, WAV)."),
+    ],
+    data_file: Annotated[
+        Path | None,
+        typer.Argument(help="Path to the Spotify CSV or JSON export file."),
+    ] = None,
+    data: Annotated[
+        Path | None,
+        typer.Option("--data", "-d", help="Path to the Spotify CSV or JSON export file."),
+    ] = None,
+    threshold: Annotated[
+        float,
+        typer.Option("--threshold", "-t", help="Minimum similarity threshold (0.0 to 1.0, default 0.70)."),
+    ] = 0.70,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Preview matches and metadata updates without modifying files."),
+    ] = False,
+    overwrite: Annotated[
+        bool,
+        typer.Option(
+            "--overwrite",
+            help="Overwrite existing non-empty tags instead of only filling missing gaps.",
+        ),
+    ] = False,
+    overwrite_art: Annotated[
+        bool,
+        typer.Option(
+            "--overwrite-art",
+            help="Force overwriting album art if cover art is available from matched Spotify data.",
+        ),
+    ] = False,
+    fetch_art: Annotated[
+        bool,
+        typer.Option(
+            "--fetch-art",
+            help="Attempt to fetch cover art from metadata providers for matched tracks.",
+        ),
+    ] = False,
+    convert_wav: Annotated[
+        bool,
+        typer.Option(
+            "--convert-wav/--no-convert-wav",
+            help="Auto-convert WAV files to FLAC before matching.",
+        ),
+    ] = True,
+    recursive: Annotated[
+        bool,
+        typer.Option("--recursive/--no-recursive", "-r", help="Recurse into subdirectories."),
+    ] = True,
+) -> None:
+    """Alias for match-spotify: import Spotify CSV/JSON export and fill metadata gaps in audio files."""
+    match_spotify(
+        target=target,
+        data_file=data_file,
+        data=data,
+        threshold=threshold,
+        dry_run=dry_run,
+        overwrite=overwrite,
+        overwrite_art=overwrite_art,
+        fetch_art=fetch_art,
+        convert_wav=convert_wav,
+        recursive=recursive,
+    )
 
 
 @app.command()

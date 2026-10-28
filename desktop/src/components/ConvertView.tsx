@@ -58,48 +58,49 @@ export const ConvertView: React.FC<ConvertViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full space-y-5 overflow-y-auto pr-1">
+    <div className="flex flex-col h-full space-y-4 overflow-y-auto pr-1">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Compression Level Card */}
-        <div className="p-5 rounded-2xl glass-panel space-y-4">
+        <div className="p-5 rounded-[20px] glass-panel flex flex-col justify-between space-y-4">
           <div className="flex justify-between items-center">
             <div>
-              <div className="text-xs font-semibold text-white">
+              <div className="text-xs font-semibold text-[#F5F5F7]">
                 FLAC Lossless Compression
               </div>
-              <div className="text-[11px] text-white/45 mt-0.5">
+              <div className="text-[11px] text-[#86868B] mt-0.5">
                 All levels preserve 100% bit-identical PCM audio
               </div>
             </div>
-            <span className="text-xs font-semibold tabular-nums text-[#0A84FF] bg-[#0A84FF]/15 px-2.5 py-1 rounded-lg border border-[#0A84FF]/30">
+            <span className="text-xs font-semibold tabular-nums text-[#0A84FF] bg-[#0A84FF]/15 px-2.5 py-1 rounded-[8px] border border-[#0A84FF]/30">
               Level {compressionLevel}
             </span>
           </div>
 
-          <input
-            type="range"
-            min="0"
-            max="12"
-            step="1"
-            value={compressionLevel}
-            onChange={(e) => setCompressionLevel(parseInt(e.target.value, 10))}
-            className="w-full apple-slider"
-          />
-
-          <div className="flex justify-between text-[11px] text-white/40 tabular-nums">
-            <span>0 (Fastest)</span>
-            <span className="text-white/70 font-medium">8 (Studio Standard)</span>
-            <span>12 (Maximum)</span>
+          <div className="space-y-2">
+            <input
+              type="range"
+              min="0"
+              max="12"
+              step="1"
+              value={compressionLevel}
+              onChange={(e) => setCompressionLevel(parseInt(e.target.value, 10))}
+              className="w-full apple-slider"
+            />
+            <div className="flex justify-between text-[11px] text-[#86868B] tabular-nums">
+              <span>0 (Fastest)</span>
+              <span className="text-[#F5F5F7] font-medium">8 (Studio Standard)</span>
+              <span>12 (Maximum)</span>
+            </div>
           </div>
         </div>
 
         {/* Output Destination Card */}
-        <div className="p-5 rounded-2xl glass-panel flex flex-col justify-between space-y-3">
+        <div className="p-5 rounded-[20px] glass-panel flex flex-col justify-between space-y-3">
           <div>
-            <div className="text-xs font-semibold text-white">
+            <div className="text-xs font-semibold text-[#F5F5F7]">
               Destination Folder
             </div>
-            <div className="text-[11px] text-white/45 mt-0.5">
+            <div className="text-[11px] text-[#86868B] mt-0.5">
               Choose where encoded `.flac` masters are written
             </div>
           </div>
@@ -108,11 +109,11 @@ export const ConvertView: React.FC<ConvertViewProps> = ({
               type="text"
               readOnly
               value={outputDir || "Same folder as source WAV"}
-              className="flex-1 px-3 py-2 rounded-xl bg-black/30 border border-white/[0.08] text-xs text-white/75 focus:outline-none"
+              className="flex-1 px-3 py-2 rounded-[10px] bg-[#1C1C1E] border border-white/[0.1] text-xs text-[#F5F5F7] focus:outline-none"
             />
             <button
               onClick={handleSelectOutputFolder}
-              className="apple-btn-secondary px-3.5 py-2 rounded-xl text-white text-xs font-medium flex items-center space-x-1.5"
+              className="apple-btn-secondary px-3.5 py-2 rounded-[10px] text-xs font-medium flex items-center space-x-1.5"
             >
               <FolderOpen className="w-3.5 h-3.5 text-[#0A84FF]" />
               <span>Choose…</span>
@@ -122,7 +123,7 @@ export const ConvertView: React.FC<ConvertViewProps> = ({
       </div>
 
       {/* Apple Switch Rows */}
-      <div className="p-5 rounded-2xl glass-panel divide-y divide-white/[0.06]">
+      <div className="p-5 rounded-[20px] glass-panel divide-y divide-white/[0.06]">
         {[
           {
             label: "Auto-Inject Metadata & 3000px Cover Art",
@@ -146,22 +147,26 @@ export const ConvertView: React.FC<ConvertViewProps> = ({
           <div
             key={row.label}
             onClick={() => row.setChecked(!row.checked)}
-            className="flex items-center justify-between py-2.5 cursor-pointer"
+            className="flex items-center justify-between py-2.5 cursor-pointer group"
           >
             <div>
-              <div className="text-xs font-medium text-white">{row.label}</div>
-              <div className="text-[11px] text-white/45">{row.desc}</div>
+              <div className="text-xs font-medium text-[#F5F5F7] group-hover:text-white">
+                {row.label}
+              </div>
+              <div className="text-[11px] text-[#86868B]">{row.desc}</div>
             </div>
             <button
               type="button"
               role="switch"
               aria-checked={row.checked}
-              className={`w-10 h-6 rounded-full p-0.5 transition-colors duration-200 ${row.checked ? "bg-[#30D158]" : "bg-white/[0.14]"
-                }`}
+              className={`w-10 h-6 rounded-full p-0.5 transition-colors duration-200 shrink-0 ${
+                row.checked ? "bg-[#34C759]" : "bg-white/[0.16]"
+              }`}
             >
               <div
-                className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform duration-200 ${row.checked ? "translate-x-4" : "translate-x-0"
-                  }`}
+                className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform duration-200 ${
+                  row.checked ? "translate-x-4" : "translate-x-0"
+                }`}
               />
             </button>
           </div>
@@ -170,9 +175,9 @@ export const ConvertView: React.FC<ConvertViewProps> = ({
 
       {/* Live Progress Bar */}
       {isConverting && (
-        <div className="p-4 rounded-2xl glass-panel space-y-2.5 border border-[#0A84FF]/40">
+        <div className="p-4 rounded-[16px] glass-panel space-y-2.5 border border-[#0A84FF]/40">
           <div className="flex justify-between text-xs tabular-nums">
-            <span className="text-white/90 font-medium truncate max-w-lg">
+            <span className="text-[#F5F5F7] font-medium truncate max-w-lg">
               {currentProgress?.message || "Encoding audio files to lossless FLAC…"}
             </span>
             <span className="text-[#0A84FF] font-semibold">
@@ -189,16 +194,16 @@ export const ConvertView: React.FC<ConvertViewProps> = ({
       )}
 
       {/* Action Bar */}
-      <div className="flex items-center justify-between p-4 rounded-2xl glass-panel">
-        <span className="text-xs text-white/60 tabular-nums">
-          <span className="text-white font-semibold">{wavFiles.length}</span>{" "}
+      <div className="flex items-center justify-between p-4 rounded-[16px] glass-panel">
+        <span className="text-xs text-[#86868B] tabular-nums">
+          <span className="text-[#F5F5F7] font-semibold">{wavFiles.length}</span>{" "}
           uncompressed WAV file(s) queued
         </span>
 
         <button
           onClick={handleConvert}
           disabled={isConverting || wavFiles.length === 0}
-          className="apple-btn-primary flex items-center space-x-2 px-6 py-2.5 rounded-xl text-white text-xs font-semibold disabled:opacity-40"
+          className="apple-btn-primary flex items-center space-x-2 px-6 py-2.5 rounded-[12px] text-xs font-semibold disabled:opacity-40"
         >
           <Disc className="w-4 h-4" />
           <span>
@@ -215,19 +220,19 @@ export const ConvertView: React.FC<ConvertViewProps> = ({
           {lastResults.map((res, i) => (
             <div
               key={i}
-              className="p-3.5 rounded-2xl glass-panel flex items-center justify-between text-xs"
+              className="p-3.5 rounded-[16px] apple-card-elevated flex items-center justify-between text-xs"
             >
               <div className="flex items-center space-x-2.5 truncate max-w-md">
                 {res.status === "converted" ? (
-                  <CheckCircle2 className="w-4 h-4 text-[#30D158] shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-[#34C759] shrink-0" />
                 ) : (
                   <AlertCircle className="w-4 h-4 text-[#FF453A] shrink-0" />
                 )}
-                <span className="truncate text-white/90 font-mono text-[11px]">
+                <span className="truncate text-[#F5F5F7] font-mono text-[11px]">
                   {res.destination || res.source}
                 </span>
               </div>
-              <span className="text-[#30D158] capitalize font-medium">
+              <span className="text-[#34C759] capitalize font-medium">
                 {res.status}
               </span>
             </div>

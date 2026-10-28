@@ -1,6 +1,7 @@
 skills-lock.json
 .agents/
 .venv/
+.claude/
 __pycache__/
 *.pyc
 *.egg-info/

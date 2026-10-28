@@ -1,4 +1,5 @@
 import React from "react";
+import { motion } from "framer-motion";
 import {
   FolderSearch,
   Sparkles,
@@ -14,6 +15,7 @@ interface SidebarProps {
   onTabChange: (tab: ActiveTab) => void;
   scannedCount: number;
   incompleteCount: number;
+  wavCount: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -21,6 +23,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onTabChange,
   scannedCount,
   incompleteCount,
+  wavCount,
 }) => {
   const sections = [
     {
@@ -54,6 +57,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: "convert" as ActiveTab,
           label: "WAV to FLAC",
           icon: Disc,
+          badge: wavCount > 0 ? `${wavCount}` : undefined,
+          badgeTone: "amber",
         },
       ],
     },
@@ -70,11 +75,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="w-60 flex flex-col justify-between border-r border-white/[0.07] bg-[#121217]/55 backdrop-blur-2xl px-3 py-4 select-none shrink-0 z-40">
+    <aside className="w-60 flex flex-col justify-between border-r border-white/[0.08] bg-[#141416]/65 backdrop-blur-xl px-3 py-4 select-none shrink-0 z-40">
       <div className="space-y-6">
         {sections.map((section) => (
           <div key={section.heading} className="space-y-1">
-            <div className="px-3 pb-1 text-[11px] font-semibold tracking-wide text-white/35 uppercase">
+            <div className="px-3 pb-1 text-[11px] font-semibold tracking-wider text-[#86868B] uppercase">
               {section.heading}
             </div>
             {section.items.map((item) => {
@@ -84,25 +89,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   key={item.id}
                   onClick={() => onTabChange(item.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 ${isActive
-                      ? "bg-white/[0.12] text-white shadow-sm"
-                      : "text-white/60 hover:text-white/90 hover:bg-white/[0.05]"
-                    }`}
+                  className={`relative w-full flex items-center justify-between px-3 py-2 rounded-[10px] text-[13px] font-medium transition-colors duration-150 active:scale-[0.98] ${
+                    isActive
+                      ? "text-[#F5F5F7]"
+                      : "text-[#86868B] hover:text-[#F5F5F7]"
+                  }`}
                 >
-                  <div className="flex items-center space-x-2.5">
+                  {isActive && (
+                    <motion.div
+                      layoutId="sidebar-active-pill"
+                      transition={{
+                        type: "spring",
+                        duration: 0.3,
+                        bounce: 0,
+                      }}
+                      className="absolute inset-0 rounded-[10px] bg-white/[0.11] border border-white/[0.08] shadow-sm"
+                    />
+                  )}
+
+                  <div className="relative z-10 flex items-center space-x-2.5">
                     <Icon
-                      className={`w-4 h-4 ${isActive ? "text-[#0A84FF]" : "text-white/50"
-                        }`}
+                      className={`w-4 h-4 transition-colors duration-150 ${
+                        isActive ? "text-[#0A84FF]" : "text-[#86868B]"
+                      }`}
                     />
                     <span>{item.label}</span>
                   </div>
 
                   {item.badge && (
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[11px] tabular-nums font-medium ${item.badgeTone === "accent"
+                      className={`relative z-10 px-2 py-0.5 rounded-full text-[11px] tabular-nums font-semibold ${
+                        item.badgeTone === "accent"
                           ? "bg-[#FF453A]/20 text-[#FF6961]"
-                          : "bg-white/[0.08] text-white/70"
-                        }`}
+                          : item.badgeTone === "amber"
+                            ? "bg-[#FF9F0A]/20 text-[#FF9F0A]"
+                            : "bg-white/[0.08] text-[#F5F5F7]/80"
+                      }`}
                     >
                       {item.badge}
                     </span>
@@ -114,15 +136,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ))}
       </div>
 
-      {/* Apple Music Style Lossless Spec Footer */}
-      <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-1.5">
+      {/* Concentric Spec Card: Outer rounded-[16px] p-3, Inner Spec Rows */}
+      <div className="p-3 rounded-[16px] surface-elevated space-y-1.5">
         <div className="flex items-center justify-between text-[11px]">
-          <span className="text-white/40">Audio Engine</span>
-          <span className="text-white/80 font-medium">Bit-Perfect</span>
+          <span className="text-[#86868B]">Audio Engine</span>
+          <span className="text-[#F5F5F7]/90 font-medium">Bit-Perfect PCM</span>
         </div>
         <div className="flex items-center justify-between text-[11px]">
-          <span className="text-white/40">Artwork CDN</span>
-          <span className="text-white/80 font-medium tabular-nums">
+          <span className="text-[#86868B]">Artwork CDN</span>
+          <span className="text-[#F5F5F7]/90 font-medium tabular-nums">
             3000 × 3000 px
           </span>
         </div>

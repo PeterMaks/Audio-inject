@@ -299,7 +299,47 @@ flac-meta-injector inject ./music/ --no-convert-wav
 
 ---
 
-### 4. `convert` — Convert WAV / Audio to FLAC with Auto-Injection
+### 4. `match-spotify` (alias: `import-spotify`) — Match & Fill Metadata from Spotify Export (CSV / JSON)
+
+Imports manual or exported Spotify playlist/library data (from Exportify, Spotlistr, Soundiiz, TuneMyMusic, or raw Spotify Web API JSON) and automatically compares, similarity-matches, and fills metadata gaps in your local audio files (FLAC, MP3, WAV).
+
+**Key Matching Behavior:**
+- **Strict Similarity Gate**: Only audio files that match Spotify tracks above the similarity threshold (`--threshold`, default `0.70`) have their metadata updated. Unrelated songs are safely ignored.
+- **Smart Metadata Gap Filling**: By default, existing accurate tags are preserved while missing gaps are completed (Album, Release Date/Year, Genres, Record Label, BPM/Tempo, Explicit flag, ISRC, Spotify Track ID, and audio features like Energy, Danceability, Valence, etc.).
+- **Full Overwrite Support**: Pass `--overwrite` if you wish to overwrite existing non-empty tags with the Spotify dataset values.
+- **Multi-Format Ingestion**: Supports `.csv`, `.tsv`, and `.json` exports with automatic column detection, artist semicolon-splitting, and UTF-8-BOM handling.
+
+```bash
+# 1. Preview similarity matching and proposed tag updates safely (Dry-Run mode)
+flac-meta-injector match-spotify ./music/ ./spotify_playlist.csv --dry-run
+
+# 2. Match and fill metadata gaps in local files from a Spotify CSV export
+flac-meta-injector match-spotify ./music/ ./spotify_playlist.csv
+
+# 3. Match from a JSON export with custom similarity threshold (e.g. 75%)
+flac-meta-injector match-spotify ./music/ ./spotify_tracks.json --threshold 0.75
+
+# 4. Overwrite existing tags with Spotify export data on matched songs
+flac-meta-injector match-spotify ./music/ ./spotify_playlist.csv --overwrite
+
+# 5. Using the import-spotify alias with --data flag
+flac-meta-injector import-spotify ./music/ --data ./spotify_playlist.csv
+```
+
+**CLI Flags for `match-spotify` / `import-spotify`:**
+- `target`: Path to audio file or directory.
+- `data_file`: Path to Spotify CSV or JSON file (also available via `--data, -d`).
+- `--threshold, -t FLOAT`: Minimum similarity score required to match (default: `0.70`).
+- `--dry-run`: Preview matches, similarity scores, and proposed tag updates without modifying disk files.
+- `--overwrite`: Overwrites existing non-empty tags instead of only filling missing gaps (default: `False`).
+- `--overwrite-art`: Replaces embedded cover art if available from matched Spotify records.
+- `--fetch-art`: Resolves and downloads master album art from providers for matched tracks (default: `False`).
+- `--convert-wav / --no-convert-wav`: Auto-converts WAV files to FLAC before matching (default: `True`).
+- `--recursive / --no-recursive, -r`: Recurse into subdirectories (default: `True`).
+
+---
+
+### 5. `convert` — Convert WAV / Audio to FLAC with Auto-Injection
 
 Losslessly encodes uncompressed audio files (`.wav`, `.wave`, `.aiff`, `.aif`) to FLAC using FFmpeg, and automatically resolves and injects metadata into the resulting tracks.
 
@@ -330,7 +370,7 @@ flac-meta-injector convert ./music/ --compression-level 8
 
 ---
 
-### 5. `clean-art` — Deduplicate & Purge Repeating Album Art
+### 6. `clean-art` — Deduplicate & Purge Repeating Album Art
 
 Deduplicates multiple embedded Picture blocks (e.g., duplicate Type 0 "Other" and Type 3 "Front Cover" blocks), purges legacy Vorbis comment picture tags (`METADATA_BLOCK_PICTURE`, `COVERART`), and optionally removes loose folder images (`folder.jpg`, `cover.jpg`) that hijack playback in Windows Explorer and desktop players.
 
@@ -347,7 +387,7 @@ flac-meta-injector clean-art ./music/ --remove-folder-art
 
 ---
 
-### 6. `fingerprint` — Acoustic Fingerprint & Heuristic Parser
+### 7. `fingerprint` — Acoustic Fingerprint & Heuristic Parser
 
 Runs `fpcalc` against an audio file, prints its Chromaprint representation, and parses candidate hints from filenames and directory hierarchies.
 

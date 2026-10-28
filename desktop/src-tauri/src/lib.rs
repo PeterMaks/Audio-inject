@@ -74,7 +74,30 @@ fn find_python_executable(root: &Path) -> PathBuf {
 }
 
 #[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+/// Creates a std::process::Command that never spawns a visible terminal window on Windows.
+pub fn silent_std_command<S: AsRef<std::ffi::OsStr>>(program: S) -> std::process::Command {
+    let mut cmd = std::process::Command::new(program);
+    cmd.env("PYTHONIOENCODING", "utf-8")
+       .env("PYTHONUTF8", "1");
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
+}
+
+/// Creates a tokio::process::Command that never spawns a visible terminal window on Windows.
+pub fn silent_tokio_command<S: AsRef<std::ffi::OsStr>>(program: S) -> tokio::process::Command {
+    let mut cmd = tokio::process::Command::new(program);
+    cmd.env("PYTHONIOENCODING", "utf-8")
+       .env("PYTHONUTF8", "1");
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
+}
 
 fn resolve_bridge_command(action: &str) -> Result<Command, String> {
     let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
@@ -91,15 +114,13 @@ fn resolve_bridge_command(action: &str) -> Result<Command, String> {
     // 1. Check installed sidecar next to the Tauri executable
     let installed_sidecar = exe_dir.join(sidecar_name);
     if installed_sidecar.exists() {
-        let mut cmd = Command::new(&installed_sidecar);
+        let mut cmd = silent_tokio_command(&installed_sidecar);
         cmd.arg(action).arg("-");
         // Ensure sibling ffmpeg.exe and fpcalc.exe are discoverable
         if let Ok(path_env) = std::env::var("PATH") {
             let sep = if cfg!(target_os = "windows") { ";" } else { ":" };
             cmd.env("PATH", format!("{}{}{}", exe_dir.display(), sep, path_env));
         }
-        #[cfg(target_os = "windows")]
-        cmd.creation_flags(CREATE_NO_WINDOW);
         return Ok(cmd);
     }
 
@@ -107,18 +128,13 @@ fn resolve_bridge_command(action: &str) -> Result<Command, String> {
     let root = find_workspace_root();
     let python = find_python_executable(&root);
 
-    let mut cmd = Command::new(python);
+    let mut cmd = silent_tokio_command(python);
     cmd.current_dir(&root);
     cmd.env("PYTHONPATH", root.join("src"));
-    cmd.env("PYTHONIOENCODING", "utf-8");
-    cmd.env("PYTHONUTF8", "1");
     cmd.arg("-m")
         .arg("flac_injector.bridge")
         .arg(action)
         .arg("-");
-
-    #[cfg(target_os = "windows")]
-    cmd.creation_flags(CREATE_NO_WINDOW);
 
     Ok(cmd)
 }
@@ -372,7 +388,6 @@ fn close_window(window: Window) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
 

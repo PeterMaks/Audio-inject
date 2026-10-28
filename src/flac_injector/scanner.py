@@ -5,12 +5,13 @@ from pathlib import Path
 from typing import Any
 
 from mutagen.flac import FLAC, FLACNoHeaderError
+from mutagen.id3 import ID3
 from mutagen.mp3 import MP3
 from mutagen.mp3 import HeaderNotFoundError as MP3HeaderNotFoundError
 from mutagen.wave import WAVE
 from PIL import Image
 
-from flac_injector.models import ScanResult
+from flac_injector.models import PLACEHOLDER_TAG_VALUES, ScanResult
 
 # Tags considered essential for a complete music collection
 CORE_TAGS = {"TITLE", "ARTIST", "ALBUM"}
@@ -102,10 +103,96 @@ def _inspect_flac(path: Path) -> ScanResult:
     )
 
 
+def _extract_id3_tags(tags: Any) -> tuple[dict[str, list[str]], bool, dict[str, Any] | None]:
+    """Extract canonical tag mappings and cover art info from ID3 tags."""
+    existing_tags: dict[str, list[str]] = {}
+    has_cover_art = False
+    cover_info: dict[str, Any] | None = None
+
+    if not tags:
+        return existing_tags, has_cover_art, cover_info
+
+    id3_map = {
+        "TIT2": "TITLE",
+        "TPE1": "ARTIST",
+        "TALB": "ALBUM",
+        "TPE2": "ALBUMARTIST",
+        "TRCK": "TRACKNUMBER",
+        "TPOS": "DISCNUMBER",
+        "TDRC": "DATE",
+        "TYER": "DATE",
+        "TCON": "GENRE",
+        "TSRC": "ISRC",
+        "TBPM": "BPM",
+        "TCOP": "COPYRIGHT",
+        "TCOM": "COMPOSER",
+        "TPUB": "LABEL",
+    }
+
+    for frame_key, frame_obj in tags.items():
+        # Check APIC frames for cover art
+        if frame_key.startswith("APIC"):
+            data = getattr(frame_obj, "data", b"")
+            mime = getattr(frame_obj, "mime", "image/jpeg")
+            width, height = 0, 0
+            if data:
+                try:
+                    with Image.open(io.BytesIO(data)) as img:
+                        width, height = img.size
+                except Exception:
+                    pass
+            has_cover_art = True
+            cover_info = {
+                "type": getattr(frame_obj, "type", 3),
+                "mime": mime,
+                "width": width,
+                "height": height,
+                "depth": 24,
+                "size_bytes": len(data),
+            }
+            continue
+
+        # Check TXXX frames for MusicBrainz / AcoustID tags
+        if frame_key.startswith("TXXX"):
+            desc = getattr(frame_obj, "desc", "").lower()
+            text = getattr(frame_obj, "text", [])
+            val = str(text[0]).strip() if text else ""
+            if val:
+                if "track id" in desc:
+                    existing_tags["MUSICBRAINZ_TRACKID"] = [val]
+                elif "album id" in desc:
+                    existing_tags["MUSICBRAINZ_ALBUMID"] = [val]
+                elif "artist id" in desc:
+                    existing_tags["MUSICBRAINZ_ARTISTID"] = [val]
+                elif "acoustid" in desc:
+                    existing_tags["ACOUSTID_ID"] = [val]
+            continue
+
+        # Standard text frames
+        prefix = frame_key[:4]
+        if prefix in id3_map:
+            canonical_name = id3_map[prefix]
+            text_vals = getattr(frame_obj, "text", [])
+            if isinstance(text_vals, list):
+                vals = [str(t).strip() for t in text_vals if str(t).strip()]
+            else:
+                vals = [str(text_vals).strip()] if str(text_vals).strip() else []
+            if vals:
+                # Clean TRCK like "1/14" -> tracknumber "1"
+                if canonical_name == "TRACKNUMBER" and "/" in vals[0]:
+                    parts = vals[0].split("/", 1)
+                    existing_tags["TRACKNUMBER"] = [parts[0].strip()]
+                    existing_tags["TRACKTOTAL"] = [parts[1].strip()]
+                else:
+                    existing_tags[canonical_name] = vals
+
+    return existing_tags, has_cover_art, cover_info
+
+
 def _inspect_mp3(path: Path) -> ScanResult:
-    """Inspect an MP3 file using Mutagen and ID3 tags."""
+    """Inspect an MP3 file using Mutagen."""
     try:
-        audio = MP3(str(path))
+        audio = MP3(str(path), ID3=ID3)
     except MP3HeaderNotFoundError as e:
         raise AudioScannerError(f"Not a valid MP3 file: {path} ({e})") from e
     except Exception as e:
@@ -117,86 +204,7 @@ def _inspect_mp3(path: Path) -> ScanResult:
     channels = int(getattr(info, "channels", 0))
     bits_per_sample = 16  # MP3 decoded PCM standard
 
-    existing_tags: dict[str, list[str]] = {}
-    has_cover_art = False
-    cover_info: dict[str, Any] | None = None
-
-    if audio.tags:
-        # Standard ID3 to Canonical Tag mapping
-        id3_map = {
-            "TIT2": "TITLE",
-            "TPE1": "ARTIST",
-            "TALB": "ALBUM",
-            "TPE2": "ALBUMARTIST",
-            "TRCK": "TRACKNUMBER",
-            "TPOS": "DISCNUMBER",
-            "TDRC": "DATE",
-            "TYER": "DATE",
-            "TCON": "GENRE",
-            "TSRC": "ISRC",
-            "TBPM": "BPM",
-            "TCOP": "COPYRIGHT",
-            "TCOM": "COMPOSER",
-            "TPUB": "LABEL",
-        }
-
-        for frame_key, frame_obj in audio.tags.items():
-            # Check APIC frames for cover art
-            if frame_key.startswith("APIC"):
-                data = getattr(frame_obj, "data", b"")
-                mime = getattr(frame_obj, "mime", "image/jpeg")
-                width, height = 0, 0
-                if data:
-                    try:
-                        with Image.open(io.BytesIO(data)) as img:
-                            width, height = img.size
-                    except Exception:
-                        pass
-                has_cover_art = True
-                cover_info = {
-                    "type": getattr(frame_obj, "type", 3),
-                    "mime": mime,
-                    "width": width,
-                    "height": height,
-                    "depth": 24,
-                    "size_bytes": len(data),
-                }
-                continue
-
-            # Check TXXX frames for MusicBrainz / AcoustID tags
-            if frame_key.startswith("TXXX"):
-                desc = getattr(frame_obj, "desc", "").lower()
-                text = getattr(frame_obj, "text", [])
-                val = str(text[0]).strip() if text else ""
-                if val:
-                    if "track id" in desc:
-                        existing_tags["MUSICBRAINZ_TRACKID"] = [val]
-                    elif "album id" in desc:
-                        existing_tags["MUSICBRAINZ_ALBUMID"] = [val]
-                    elif "artist id" in desc:
-                        existing_tags["MUSICBRAINZ_ARTISTID"] = [val]
-                    elif "acoustid" in desc:
-                        existing_tags["ACOUSTID_ID"] = [val]
-                continue
-
-            # Standard text frames
-            prefix = frame_key[:4]
-            if prefix in id3_map:
-                canonical_name = id3_map[prefix]
-                text_vals = getattr(frame_obj, "text", [])
-                if isinstance(text_vals, list):
-                    vals = [str(t).strip() for t in text_vals if str(t).strip()]
-                else:
-                    vals = [str(text_vals).strip()] if str(text_vals).strip() else []
-                if vals:
-                    # Clean TRCK like "1/14" -> tracknumber "1"
-                    if canonical_name == "TRACKNUMBER" and "/" in vals[0]:
-                        parts = vals[0].split("/", 1)
-                        existing_tags["TRACKNUMBER"] = [parts[0].strip()]
-                        existing_tags["TRACKTOTAL"] = [parts[1].strip()]
-                    else:
-                        existing_tags[canonical_name] = vals
-
+    existing_tags, has_cover_art, cover_info = _extract_id3_tags(audio.tags)
     missing_fields = _detect_missing_fields(existing_tags)
     is_incomplete = any(tag in missing_fields for tag in CORE_TAGS) or not has_cover_art
 
@@ -228,14 +236,9 @@ def _inspect_wav(path: Path) -> ScanResult:
     channels = int(getattr(info, "channels", 0))
     bits_per_sample = int(getattr(info, "bits_per_sample", 16))
 
-    existing_tags: dict[str, list[str]] = {}
-    if audio.tags:
-        for k, v in audio.tags.items():
-            existing_tags[k.upper()] = [str(item).strip() for item in v if str(item).strip()]
-
+    existing_tags, has_cover_art, cover_info = _extract_id3_tags(audio.tags)
     missing_fields = _detect_missing_fields(existing_tags)
-    # WAV files lack standard high-res embedded front cover blocks and need conversion to FLAC
-    is_incomplete = True
+    is_incomplete = any(tag in missing_fields for tag in CORE_TAGS) or not has_cover_art
 
     return ScanResult(
         path=path,
@@ -245,8 +248,8 @@ def _inspect_wav(path: Path) -> ScanResult:
         bits_per_sample=bits_per_sample,
         existing_tags=existing_tags,
         missing_fields=sorted(missing_fields),
-        has_cover_art=False,
-        cover_art_info=None,
+        has_cover_art=has_cover_art,
+        cover_art_info=cover_info,
         is_incomplete=is_incomplete,
         audio_format="wav",
     )

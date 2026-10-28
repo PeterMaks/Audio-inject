@@ -1,5 +1,14 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { Plus, FolderPlus, CheckCircle2, AlertCircle, X, RefreshCw, Trash2 } from "lucide-react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  Plus,
+  FolderPlus,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
 import { Titlebar } from "./components/Titlebar";
 import { Sidebar, ActiveTab } from "./components/Sidebar";
 import { DropZone } from "./components/DropZone";
@@ -34,8 +43,10 @@ interface AppleToast {
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>("scan");
   const [scannedItems, setScannedItems] = useState<ScanItem[]>([]);
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [inspectedItem, setInspectedItem] = useState<ScanItem | null>(null);
   const [ambientArtUrl, setAmbientArtUrl] = useState<string | null>(null);
+  const [recursiveScan, setRecursiveScan] = useState<boolean>(true);
 
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [isInjecting, setIsInjecting] = useState<boolean>(false);
@@ -47,6 +58,7 @@ export const App: React.FC = () => {
   const [injectResults, setInjectResults] = useState<InjectItemResult[]>([]);
   const [convertResults, setConvertResults] = useState<ConvertItemResult[]>([]);
   const [toast, setToast] = useState<AppleToast | null>(null);
+  const inspectCache = useRef<Map<string, ScanItem>>(new Map());
 
   const showToast = useCallback(
     (type: "success" | "error" | "info", title: string, message: string) => {
@@ -54,12 +66,11 @@ export const App: React.FC = () => {
       setToast({ id, type, title, message });
       setTimeout(() => {
         setToast((prev) => (prev?.id === id ? null : prev));
-      }, 4200);
+      }, 4000);
     },
     []
   );
 
-  // Listen to live stream progress from Tauri Rust backend
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     onInjectorProgress((evt) => {
@@ -78,10 +89,16 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Inspect track in detail
   const handleInspect = useCallback(async (item: ScanItem) => {
+    const cached = inspectCache.current.get(item.path);
+    if (cached) {
+      setInspectedItem(cached);
+      setAmbientArtUrl(cached.cover_art_data_url ?? null);
+      return;
+    }
     try {
       const full = await runInspect(item.path, true);
+      inspectCache.current.set(item.path, full);
       setInspectedItem(full);
       setAmbientArtUrl(full.cover_art_data_url ?? null);
     } catch (e) {
@@ -91,20 +108,19 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Auto-inspect first track when clicking Track Inspector tab if none selected
   useEffect(() => {
     if (activeTab === "inspect" && !inspectedItem && scannedItems.length > 0) {
       handleInspect(scannedItems[0]);
     }
   }, [activeTab, inspectedItem, scannedItems, handleInspect]);
 
-  // Handle Drag & Drop or File Selection with merging support
   const handlePathsSelected = useCallback(
     async (paths: string[], append: boolean = false) => {
       if (!paths || paths.length === 0) return;
       setIsScanning(true);
       try {
-        const res = await runScan(paths, true, false);
+        const res = await runScan(paths, recursiveScan, false);
+        if (!append) inspectCache.current.clear();
         setScannedItems((prev) => {
           if (!append || prev.length === 0) {
             return res.items;
@@ -138,8 +154,28 @@ export const App: React.FC = () => {
         setIsScanning(false);
       }
     },
-    [showToast]
+    [recursiveScan, showToast]
   );
+
+  const handleToggleSelect = useCallback((path: string) => {
+    setSelectedPaths((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectMany = useCallback((paths: string[]) => {
+    setSelectedPaths(new Set(paths));
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedPaths(new Set());
+  }, []);
 
   const handleQuickAddFiles = async () => {
     const files = await pickAudioFiles();
@@ -162,7 +198,9 @@ export const App: React.FC = () => {
   };
 
   const handleClearLibrary = () => {
+    inspectCache.current.clear();
     setScannedItems([]);
+    setSelectedPaths(new Set());
     setInspectedItem(null);
     setAmbientArtUrl(null);
     setInjectResults([]);
@@ -170,7 +208,6 @@ export const App: React.FC = () => {
     showToast("info", "Library Cleared", "Removed loaded tracks from session.");
   };
 
-  // Start Waterfall Inject
   const handleStartInject = async (params: {
     paths: string[];
     threshold: number;
@@ -197,7 +234,6 @@ export const App: React.FC = () => {
       );
 
       if (scannedItems.length > 0) {
-        // Map converted WAV to new FLAC paths
         const convertedMap = new Map<string, string>();
         for (const item of res.items) {
           if (item.file && item.file.toLowerCase().endsWith(".flac")) {
@@ -214,18 +250,6 @@ export const App: React.FC = () => {
           false
         );
         setScannedItems(refreshed.items);
-
-        // Refresh inspectedItem if currently open
-        if (inspectedItem) {
-          const inspectedNewPath =
-            convertedMap.get(inspectedItem.path) || inspectedItem.path;
-          runInspect(inspectedNewPath, true)
-            .then((full) => {
-              setInspectedItem(full);
-              setAmbientArtUrl(full.cover_art_data_url ?? null);
-            })
-            .catch(() => {});
-        }
       }
     } catch (e) {
       console.error("Injection error:", e);
@@ -235,7 +259,6 @@ export const App: React.FC = () => {
     }
   };
 
-  // Single file injection
   const handleInjectSingle = async (item: ScanItem) => {
     setActiveTab("inject");
     await handleStartInject({
@@ -247,7 +270,6 @@ export const App: React.FC = () => {
     });
   };
 
-  // Batch injection
   const handleInjectBatch = (items: ScanItem[]) => {
     setActiveTab("inject");
     handleStartInject({
@@ -259,7 +281,6 @@ export const App: React.FC = () => {
     });
   };
 
-  // Start WAV conversion
   const handleStartConvert = async (params: {
     paths: string[];
     outputDir?: string | null;
@@ -297,18 +318,6 @@ export const App: React.FC = () => {
           false
         );
         setScannedItems(refreshed.items);
-
-        // Refresh inspectedItem if currently open
-        if (inspectedItem) {
-          const inspectedNewPath =
-            conversionMap.get(inspectedItem.path) || inspectedItem.path;
-          runInspect(inspectedNewPath, true)
-            .then((full) => {
-              setInspectedItem(full);
-              setAmbientArtUrl(full.cover_art_data_url ?? null);
-            })
-            .catch(() => {});
-        }
       }
     } catch (e) {
       console.error("Conversion failed:", e);
@@ -318,7 +327,6 @@ export const App: React.FC = () => {
     }
   };
 
-  // Single file WAV convert
   const handleConvertSingle = (item: ScanItem) => {
     setActiveTab("convert");
     handleStartConvert({
@@ -332,7 +340,31 @@ export const App: React.FC = () => {
     });
   };
 
-  const incompleteCount = scannedItems.filter((i) => i.is_incomplete).length;
+  const handleConvertBatch = (items: ScanItem[]) => {
+    setActiveTab("convert");
+    handleStartConvert({
+      paths: items.map((i) => i.path),
+      outputDir: null,
+      inject: true,
+      deleteOriginal: false,
+      compressionLevel: 8,
+      threshold: 0.7,
+      dryRun: false,
+    });
+  };
+
+  const incompleteCount = useMemo(
+    () => scannedItems.filter((i) => i.is_incomplete).length,
+    [scannedItems]
+  );
+
+  const wavCount = useMemo(
+    () =>
+      scannedItems.filter((i) =>
+        ["wav", "wave", "aiff", "aif"].includes(i.audio_format.toLowerCase())
+      ).length,
+    [scannedItems]
+  );
 
   const viewMeta: Record<ActiveTab, { title: string; subtitle: string }> = {
     scan: {
@@ -349,7 +381,8 @@ export const App: React.FC = () => {
     },
     inspect: {
       title: "Track Inspector",
-      subtitle: "Select any track to inspect Vorbis comments, ID3v2.4 frames & art",
+      subtitle:
+        "Inspect Vorbis comments, ID3v2.4 frames, Chromaprint hashes & artwork",
     },
     convert: {
       title: "WAV to FLAC Studio",
@@ -362,7 +395,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="relative flex flex-col h-screen w-screen overflow-hidden bg-[#0c0c0f]/75 text-white antialiased">
+    <div className="relative flex flex-col h-screen w-screen overflow-hidden bg-[#000000]/80 text-[#F5F5F7] antialiased">
       {/* Apple Music Dynamic Artwork Mesh */}
       {ambientArtUrl && (
         <div
@@ -371,26 +404,35 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Floating Apple Notification Banner */}
-      {toast && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 flex items-center space-x-3 px-4 py-2.5 rounded-2xl glass-panel border border-white/[0.18] shadow-2xl min-w-[320px] max-w-md animate-fade-in">
-          {toast.type === "error" ? (
-            <AlertCircle className="w-4 h-4 text-[#FF453A] shrink-0" />
-          ) : (
-            <CheckCircle2 className="w-4 h-4 text-[#30D158] shrink-0" />
-          )}
-          <div className="flex-1 text-xs">
-            <div className="font-semibold text-white">{toast.title}</div>
-            <div className="text-white/65 truncate">{toast.message}</div>
-          </div>
-          <button
-            onClick={() => setToast(null)}
-            className="p-1 rounded-full text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+      {/* Spring-Animated Floating Apple Notification Banner */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            key={toast.id}
+            initial={{ opacity: 0, y: -16, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.96 }}
+            transition={{ type: "spring", duration: 0.32, bounce: 0 }}
+            className="fixed top-14 left-1/2 -translate-x-1/2 z-50 flex items-center space-x-3 px-4 py-2.5 rounded-[16px] glass-panel shadow-2xl min-w-[320px] max-w-md"
           >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
+            {toast.type === "error" ? (
+              <AlertCircle className="w-4 h-4 text-[#FF453A] shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-[#34C759] shrink-0" />
+            )}
+            <div className="flex-1 text-xs">
+              <div className="font-semibold text-[#F5F5F7]">{toast.title}</div>
+              <div className="text-[#86868B] truncate">{toast.message}</div>
+            </div>
+            <button
+              onClick={() => setToast(null)}
+              className="p-1 rounded-full text-[#86868B] hover:text-[#F5F5F7] hover:bg-white/10 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Unified Frameless Toolbar */}
       <Titlebar />
@@ -402,60 +444,76 @@ export const App: React.FC = () => {
           onTabChange={setActiveTab}
           scannedCount={scannedItems.length}
           incompleteCount={incompleteCount}
+          wavCount={wavCount}
         />
 
         <main className="flex-1 flex flex-col px-7 py-5 overflow-hidden">
           {/* Apple HIG Large Title Header Bar */}
-          <div className="flex items-center justify-between pb-4 mb-4 border-b border-white/[0.07] shrink-0">
+          <div className="flex items-center justify-between pb-4 mb-4 border-b border-white/[0.08] shrink-0">
             <div>
-              <h1 className="text-xl font-semibold tracking-tight text-white">
+              <h1 className="text-xl display-heading text-[#F5F5F7]">
                 {viewMeta[activeTab].title}
               </h1>
-              <p className="text-xs text-white/50 mt-0.5">
+              <p className="text-xs text-[#86868B] mt-0.5 tabular-nums">
                 {viewMeta[activeTab].subtitle}
               </p>
             </div>
 
-            {scannedItems.length > 0 && (
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={handleRescan}
-                  disabled={isScanning}
-                  title="Rescan current library tracks"
-                  className="apple-btn-secondary flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/90"
-                >
-                  <RefreshCw
-                    className={`w-3.5 h-3.5 text-[#30D158] ${isScanning ? "animate-spin" : ""
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setRecursiveScan(!recursiveScan)}
+                title="Toggle recursive subfolder scanning"
+                className={`px-2.5 py-1.5 rounded-[10px] text-[11px] font-medium border transition-all active:scale-[0.97] ${
+                  recursiveScan
+                    ? "bg-[#0A84FF]/15 text-[#0A84FF] border-[#0A84FF]/35"
+                    : "bg-white/[0.04] text-[#86868B] border-white/[0.08]"
+                }`}
+              >
+                Recursive: {recursiveScan ? "On" : "Off"}
+              </button>
+
+              {scannedItems.length > 0 && (
+                <>
+                  <button
+                    onClick={handleRescan}
+                    disabled={isScanning}
+                    title="Rescan current library tracks"
+                    className="apple-btn-secondary flex items-center space-x-1.5 px-3 py-1.5 rounded-[10px] text-xs font-medium text-[#F5F5F7]"
+                  >
+                    <RefreshCw
+                      className={`w-3.5 h-3.5 text-[#34C759] ${
+                        isScanning ? "animate-spin" : ""
                       }`}
-                  />
-                  <span>Rescan</span>
-                </button>
-                <button
-                  onClick={handleQuickAddFiles}
-                  disabled={isScanning}
-                  className="apple-btn-secondary flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/90"
-                >
-                  <Plus className="w-3.5 h-3.5 text-[#0A84FF]" />
-                  <span>Add Tracks</span>
-                </button>
-                <button
-                  onClick={handleQuickAddFolder}
-                  disabled={isScanning}
-                  className="apple-btn-secondary flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/90"
-                >
-                  <FolderPlus className="w-3.5 h-3.5 text-[#0A84FF]" />
-                  <span>Add Folder</span>
-                </button>
-                <button
-                  onClick={handleClearLibrary}
-                  disabled={isScanning}
-                  title="Clear library list"
-                  className="apple-btn-secondary flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-white/70 hover:text-[#FF453A]"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
+                    />
+                    <span>Rescan</span>
+                  </button>
+                  <button
+                    onClick={handleQuickAddFiles}
+                    disabled={isScanning}
+                    className="apple-btn-secondary flex items-center space-x-1.5 px-3 py-1.5 rounded-[10px] text-xs font-medium text-[#F5F5F7]"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-[#0A84FF]" />
+                    <span>Add Tracks</span>
+                  </button>
+                  <button
+                    onClick={handleQuickAddFolder}
+                    disabled={isScanning}
+                    className="apple-btn-secondary flex items-center space-x-1.5 px-3 py-1.5 rounded-[10px] text-xs font-medium text-[#F5F5F7]"
+                  >
+                    <FolderPlus className="w-3.5 h-3.5 text-[#0A84FF]" />
+                    <span>Add Folder</span>
+                  </button>
+                  <button
+                    onClick={handleClearLibrary}
+                    disabled={isScanning}
+                    title="Clear library list"
+                    className="apple-btn-secondary flex items-center space-x-1.5 px-2.5 py-1.5 rounded-[10px] text-xs font-medium text-[#86868B] hover:text-[#FF453A]"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Active Workspace Body */}
@@ -468,15 +526,28 @@ export const App: React.FC = () => {
             </div>
           ) : (
             <div className="flex-1 overflow-hidden">
-              {activeTab === "scan" && (
-                <ScanView
-                  items={scannedItems}
-                  onInspect={handleInspect}
-                  onInjectSingle={handleInjectSingle}
-                  onInjectBatch={handleInjectBatch}
-                  onConvertSingle={handleConvertSingle}
-                />
-              )}
+              {(activeTab === "scan" || activeTab === "inspect") &&
+                (scannedItems.length > 0 ? (
+                  <ScanView
+                    items={scannedItems}
+                    selectedPaths={selectedPaths}
+                    onToggleSelect={handleToggleSelect}
+                    onSelectMany={handleSelectMany}
+                    onClearSelection={handleClearSelection}
+                    onInspect={handleInspect}
+                    onInjectSingle={handleInjectSingle}
+                    onInjectBatch={handleInjectBatch}
+                    onConvertSingle={handleConvertSingle}
+                    onConvertBatch={handleConvertBatch}
+                  />
+                ) : (
+                  <div className="flex-1 flex items-center justify-center max-w-xl mx-auto w-full h-full">
+                    <DropZone
+                      onPathsSelected={handlePathsSelected}
+                      isScanning={isScanning}
+                    />
+                  </div>
+                ))}
 
               {activeTab === "inject" && (
                 <InjectView
@@ -486,27 +557,6 @@ export const App: React.FC = () => {
                   lastResults={injectResults}
                   onStartInject={handleStartInject}
                 />
-              )}
-
-              {activeTab === "inspect" && (
-                <div className="flex flex-col h-full">
-                  {scannedItems.length > 0 ? (
-                    <ScanView
-                      items={scannedItems}
-                      onInspect={handleInspect}
-                      onInjectSingle={handleInjectSingle}
-                      onInjectBatch={handleInjectBatch}
-                      onConvertSingle={handleConvertSingle}
-                    />
-                  ) : (
-                    <div className="flex-1 flex items-center justify-center max-w-xl mx-auto w-full">
-                      <DropZone
-                        onPathsSelected={handlePathsSelected}
-                        isScanning={isScanning}
-                      />
-                    </div>
-                  )}
-                </div>
               )}
 
               {activeTab === "convert" && (

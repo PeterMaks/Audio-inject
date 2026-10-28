@@ -10,6 +10,22 @@ from typing import Any
 
 from flac_injector.config import get_settings
 from flac_injector.models import FingerprintResult
+from flac_injector.subprocess_patch import (
+    get_windows_headless_kwargs,
+    install_windows_headless_subprocess_patch,
+)
+
+# Install Windows headless patch globally before any acoustid or child process invocation
+install_windows_headless_subprocess_patch()
+
+
+def run_silent_subprocess(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
+    """Run subprocess with silent headless flags on Windows."""
+    headless_kwargs = get_windows_headless_kwargs()
+    for k, v in headless_kwargs.items():
+        if k not in kwargs:
+            kwargs[k] = v
+    return subprocess.run(args, **kwargs)
 
 
 class FingerprintError(Exception):
@@ -45,19 +61,13 @@ def generate_fingerprint(
     if fpcalc_bin:
         try:
             cmd = [str(fpcalc_bin), "-json", str(path)]
-            extra_kwargs: dict[str, Any] = {}
-            if sys.platform == "win32":
-                extra_kwargs["creationflags"] = getattr(
-                    subprocess, "CREATE_NO_WINDOW", 0x08000000
-                )
-
             proc = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 check=False,
                 timeout=30,
-                **extra_kwargs,
+                **get_windows_headless_kwargs(),
             )
             if proc.returncode == 0:
                 data = json.loads(proc.stdout)
@@ -66,11 +76,13 @@ def generate_fingerprint(
                 if fingerprint:
                     return FingerprintResult(fingerprint=fingerprint, duration=duration)
         except Exception:
-            # Fall back to acoustid python module
             pass
 
-    # Fallback to pyacoustid
+    # Fallback to pyacoustid (uses subprocess.Popen internally).
+    # The global Popen monkey-patch adds CREATE_NO_WINDOW + SW_HIDE; re-apply
+    # it here in case a frozen PyInstaller build lost the patch.
     try:
+        install_windows_headless_subprocess_patch()
         import acoustid
 
         duration, fingerprint = acoustid.fingerprint_file(str(path))

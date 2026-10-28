@@ -5,7 +5,26 @@ import subprocess
 import sys
 from pathlib import Path
 
+from typing import Any
+
 from mutagen.flac import FLAC, FLACNoHeaderError
+
+from flac_injector.subprocess_patch import (
+    get_windows_headless_kwargs,
+    install_windows_headless_subprocess_patch,
+)
+
+# Install Windows headless patch globally before any child process invocation
+install_windows_headless_subprocess_patch()
+
+
+def run_silent_subprocess(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
+    """Run subprocess with silent headless flags on Windows."""
+    headless_kwargs = get_windows_headless_kwargs()
+    for k, v in headless_kwargs.items():
+        if k not in kwargs:
+            kwargs[k] = v
+    return subprocess.run(args, **kwargs)
 
 
 class ConversionError(Exception):
@@ -66,19 +85,12 @@ def convert_to_flac(
     ]
 
     try:
-        extra_kwargs: dict = {}
-        if sys.platform == "win32":
-            extra_kwargs["creationflags"] = getattr(
-                subprocess, "CREATE_NO_WINDOW", 0x08000000
-            )
-
-        proc = subprocess.run(
+        proc = run_silent_subprocess(
             cmd,
             capture_output=True,
             text=True,
             check=False,
             timeout=120,
-            **extra_kwargs,
         )
         if proc.returncode != 0:
             err_msg = proc.stderr.strip()[:200]

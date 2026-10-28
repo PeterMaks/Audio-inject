@@ -5,13 +5,85 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+PLACEHOLDER_TAG_VALUES: set[str] = {
+    "unknown",
+    "unknown album",
+    "unknown artist",
+    "unknown title",
+    "untitled",
+    "none",
+    "null",
+    "no album",
+    "no artist",
+    "placeholder",
+}
+
+
+def resolve_album_name(
+    album: str | None,
+    title: str | None = None,
+    is_single: bool = False,
+    total_tracks: int | str | None = None,
+) -> str:
+    """Resolve canonical album name:
+    1. If data provides an album (from CSV, tag, or provider) that is not a placeholder or single marker, use it.
+    2. If it is a single (or album is missing/placeholder/marked 'Single'), label as '{title} - Single'.
+    3. If both fail, label as 'Unknown Album'.
+    """
+    clean_album = str(album).strip() if album is not None else ""
+    clean_title = str(title).strip() if title is not None else ""
+
+    album_lower = clean_album.lower().strip("\"'")
+    title_lower = clean_title.lower().strip("\"'")
+
+    is_placeholder = not album_lower or album_lower in PLACEHOLDER_TAG_VALUES
+    is_single_marker = album_lower in ("single", "the single", "(single)", "- single", "[single]")
+
+    # Check track total for standalone single releases
+    is_single_by_tracks = False
+    if total_tracks is not None:
+        try:
+            is_single_by_tracks = int(str(total_tracks).split("/")[0].strip()) == 1
+        except (ValueError, TypeError):
+            pass
+
+    has_valid_title = bool(clean_title) and title_lower not in PLACEHOLDER_TAG_VALUES
+    has_valid_album = bool(clean_album) and not is_placeholder and not is_single_marker
+
+    single_detected = (
+        is_single
+        or is_single_marker
+        or album_lower.endswith(" - single")
+        or album_lower.endswith(" (single)")
+        or (is_single_by_tracks and album_lower == title_lower)
+        or (is_placeholder and has_valid_title)
+    )
+
+    if single_detected:
+        target_name = clean_title if has_valid_title else (clean_album if has_valid_album else "")
+        if target_name:
+            if target_name.lower().endswith(" - single") or target_name.lower().endswith(" (single)"):
+                return target_name
+            return f"{target_name} - Single"
+
+    # 1. Real Album Name from data (as per data provided by CSV / source)
+    if has_valid_album:
+        return clean_album
+
+    # 2. Labeled Single (if album was placeholder/missing but title exists)
+    if has_valid_title:
+        return f"{clean_title} - Single"
+
+    # 3. If both fail, fallback to "Unknown Album"
+    return "Unknown Album"
+
 
 class TrackMetadata(BaseModel):
     """Canonical representation of track metadata aggregated across providers."""
 
     title: str
     artist: str
-    album: str
+    album: str = Field(default="Unknown Album")
     album_artist: str | None = None
     track_number: str | None = None
     track_total: str | None = None

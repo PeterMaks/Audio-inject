@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 import string
 from pathlib import Path
-from typing import Any
 
 from rapidfuzz import fuzz
 
@@ -69,7 +68,7 @@ def make_artwork_cache_key(
     release_id_or_isrc: str | None = None,
 ) -> tuple[str, str, str] | None:
     """Generate a collision-proof artwork cache key.
-    
+
     Returns None if the artist or album is generic or missing, which signals
     that caching should be completely bypassed.
     """
@@ -127,7 +126,7 @@ def verify_artwork_candidate(
     candidate_isrc: str | None = None,
 ) -> bool:
     """Strict artwork candidate verification gate using RapidFuzz.
-    
+
     Guarantees:
     1. Artist Similarity Gate: RapidFuzz token_set_ratio >= 80 between track artist
        and candidate artist. Disallows generic artists.
@@ -174,7 +173,16 @@ def verify_artwork_candidate(
         # Reject compilations when track album is missing
         if candidate_album:
             norm_cand_album = normalize_text(candidate_album)
-            if any(p in norm_cand_album for p in ("compilation", "soundtrack", "greatest hits", "best of", "various artists")):
+            if any(
+                p in norm_cand_album
+                for p in (
+                    "compilation",
+                    "soundtrack",
+                    "greatest hits",
+                    "best of",
+                    "various artists",
+                )
+            ):
                 return False
 
         return True
@@ -182,7 +190,7 @@ def verify_artwork_candidate(
 
 def resolve_local_folder_art(audio_file: Path) -> Path | None:
     """Find local folder cover image if and only if the folder belongs to a single artist/album.
-    
+
     Disables local folder art fallback when a directory contains tracks from multiple
     distinct artists or differing ALBUM tags, preventing flat folder bleed.
     """
@@ -194,8 +202,7 @@ def resolve_local_folder_art(audio_file: Path) -> Path | None:
         return None
 
     audio_files = [
-        f for f in parent.iterdir()
-        if f.is_file() and f.suffix.lower() in {".flac", ".mp3"}
+        f for f in parent.iterdir() if f.is_file() and f.suffix.lower() in {".flac", ".mp3"}
     ]
     if not audio_files:
         return None
@@ -213,7 +220,7 @@ def resolve_local_folder_art(audio_file: Path) -> Path | None:
                 audio = MP3(str(af))
                 artist = str(audio.get("TPE1", ""))
                 album = str(audio.get("TALB", ""))
-            
+
             norm_a = normalize_text(artist)
             norm_al = normalize_text(album)
             if norm_a and not is_generic_artist(norm_a):
@@ -228,8 +235,14 @@ def resolve_local_folder_art(audio_file: Path) -> Path | None:
         return None
 
     loose_art_names = {
-        "folder.jpg", "folder.png", "cover.jpg", "cover.png",
-        "albumart.jpg", "albumart.png", "front.jpg", "front.png"
+        "folder.jpg",
+        "folder.png",
+        "cover.jpg",
+        "cover.png",
+        "albumart.jpg",
+        "albumart.png",
+        "front.jpg",
+        "front.png",
     }
     for item in parent.iterdir():
         if item.is_file() and item.name.lower() in loose_art_names:

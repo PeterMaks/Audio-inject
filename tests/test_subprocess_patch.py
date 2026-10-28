@@ -2,18 +2,12 @@
 
 import subprocess
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-import flac_injector
-import flac_injector.bridge
-import flac_injector.cli
-import flac_injector.converter
-import flac_injector.fingerprint
 from flac_injector.subprocess_patch import (
     get_windows_headless_kwargs,
-    install_windows_headless_subprocess_patch,
 )
 
 
@@ -48,7 +42,9 @@ def test_silent_popen_injects_flags():
         pytest.skip("Windows-specific verification")
 
     # Mock _OriginalPopen super().__init__ by inspecting kwargs passed to subprocess.Popen
-    with patch.object(subprocess.Popen.__mro__[1], "__init__", return_value=None) as mock_super_init:
+    with patch.object(
+        subprocess.Popen.__mro__[1], "__init__", return_value=None
+    ) as mock_super_init:
         subprocess.Popen(["dummy.exe"])
         mock_super_init.assert_called_once()
         args, kwargs = mock_super_init.call_args

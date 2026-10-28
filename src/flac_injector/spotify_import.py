@@ -13,7 +13,13 @@ from typing import Any
 from rapidfuzz import fuzz
 
 from flac_injector.fingerprint import parse_filename_metadata
-from flac_injector.models import PLACEHOLDER_TAG_VALUES, ScanResult, TrackMetadata, resolve_album_name, split_artists
+from flac_injector.models import (
+    PLACEHOLDER_TAG_VALUES,
+    ScanResult,
+    TrackMetadata,
+    resolve_album_name,
+    split_artists,
+)
 from flac_injector.scanner import inspect_audio
 
 logger = logging.getLogger(__name__)
@@ -93,7 +99,9 @@ class SpotifyTrackRecord:
         artist_display = ", ".join(artists) if artists else "Unknown Artist"
 
         # 3. Album & nested album properties
-        album_obj = norm_map.get("albumname") or norm_map.get("album") or norm_map.get("collectionname")
+        album_obj = (
+            norm_map.get("albumname") or norm_map.get("album") or norm_map.get("collectionname")
+        )
         album_raw: str | None = None
         album_dict: dict[str, Any] = {}
         if isinstance(album_obj, dict):
@@ -314,7 +322,9 @@ class SpotifyTrackRecord:
         )
 
 
-def load_spotify_data(source: Path | str | bytes | list[dict[str, Any]]) -> list[SpotifyTrackRecord]:
+def load_spotify_data(
+    source: Path | str | bytes | list[dict[str, Any]],
+) -> list[SpotifyTrackRecord]:
     """Parse Spotify export data from a file path, string content, or list of dicts.
 
     Supports:
@@ -332,13 +342,11 @@ def load_spotify_data(source: Path | str | bytes | list[dict[str, Any]]) -> list
 
     content: str
     is_json_ext = False
-    is_csv_ext = False
 
     if isinstance(source, Path):
         if not source.exists():
             raise FileNotFoundError(f"Spotify data file does not exist: {source}")
         is_json_ext = source.suffix.lower() == ".json"
-        is_csv_ext = source.suffix.lower() in (".csv", ".tsv", ".txt")
         # Read with utf-8-sig to automatically handle BOM
         try:
             content = source.read_text(encoding="utf-8-sig")
@@ -365,9 +373,9 @@ def load_spotify_data(source: Path | str | bytes | list[dict[str, Any]]) -> list
         try:
             data = json.loads(content_strip)
             return _parse_json_data(data)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as err:
             if is_json_ext:
-                raise ValueError("Failed to parse file as JSON.")
+                raise ValueError("Failed to parse file as JSON.") from err
 
     # Otherwise, parse as CSV
     return _parse_csv_data(content_strip)
@@ -439,7 +447,7 @@ def calculate_similarity(
     record: SpotifyTrackRecord,
 ) -> float:
     """Calculate normalized similarity ratio (0.0 to 1.0) between an audio file and a Spotify track.
-    
+
     Evaluates similarity across both embedded metadata tags and filename-parsed hints,
     ensuring tracks with missing or corrupt internal tags match by filename.
     """
@@ -582,7 +590,8 @@ def match_file_to_spotify(
     title_matches = False
     if curr_raw_title and curr_raw_title.lower().strip("\"'") not in PLACEHOLDER_TAG_VALUES:
         title_matches = (
-            fuzz.token_set_ratio(curr_raw_title.lower(), best_record.title.lower()) >= mismatch_threshold * 100
+            fuzz.token_set_ratio(curr_raw_title.lower(), best_record.title.lower())
+            >= mismatch_threshold * 100
         )
 
     artist_matches = False
@@ -593,9 +602,7 @@ def match_file_to_spotify(
         artist_matches = max(a_sims) >= mismatch_threshold * 100
 
     # If the file's existing artist or song name does not meet similarity to the matched track
-    is_file_mismatched = bool(
-        overwrite_mismatched and (not title_matches or not artist_matches)
-    )
+    is_file_mismatched = bool(overwrite_mismatched and (not title_matches or not artist_matches))
 
     # Helper to resolve field: fill gap or overwrite
     def pick_str(
@@ -628,12 +635,13 @@ def match_file_to_spotify(
         or best_record.title
     )
     target_artist = (
-        pick_str("ARTIST", best_record.artist, existing.get("ARTIST", [""])[0], is_identity_field=True)
+        pick_str(
+            "ARTIST", best_record.artist, existing.get("ARTIST", [""])[0], is_identity_field=True
+        )
         or best_record.artist
     )
     target_album = (
-        pick_str("ALBUM", best_record.album, existing.get("ALBUM", [""])[0])
-        or best_record.album
+        pick_str("ALBUM", best_record.album, existing.get("ALBUM", [""])[0]) or best_record.album
     )
     target_album = resolve_album_name(
         album=target_album,

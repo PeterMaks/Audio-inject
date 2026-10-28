@@ -5,7 +5,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -149,8 +148,20 @@ def parse_filename_metadata(file_path: Path | str) -> dict[str, Any]:
 
 
 GENERIC_DIRS = {
-    "fixtures", "tests", "test", "music", "flac", "audio", "downloads",
-    "desktop", "documents", "temp", "tmp", "source", "src", "bin"
+    "fixtures",
+    "tests",
+    "test",
+    "music",
+    "flac",
+    "audio",
+    "downloads",
+    "desktop",
+    "documents",
+    "temp",
+    "tmp",
+    "source",
+    "src",
+    "bin",
 }
 
 

@@ -81,6 +81,7 @@ def test_inspect_invalid_flac(tmp_path: Path) -> None:
 def test_inspect_flac_placeholder_album_is_incomplete(tagged_flac: Path) -> None:
     """Test that a track with 'Unknown Album' is flagged as incomplete."""
     from mutagen.flac import FLAC
+
     audio = FLAC(str(tagged_flac))
     audio["ALBUM"] = ["Unknown Album"]
     audio.save()
@@ -88,4 +89,3 @@ def test_inspect_flac_placeholder_album_is_incomplete(tagged_flac: Path) -> None
     res = inspect_flac(tagged_flac)
     assert "ALBUM" in res.missing_fields
     assert res.is_incomplete is True
-

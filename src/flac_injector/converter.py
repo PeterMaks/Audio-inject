@@ -2,9 +2,7 @@
 
 import shutil
 import subprocess
-import sys
 from pathlib import Path
-
 from typing import Any
 
 from mutagen.flac import FLAC, FLACNoHeaderError

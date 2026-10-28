@@ -47,9 +47,7 @@ async def test_musicbrainz_lookup_by_fingerprint(mock_settings: Settings) -> Non
                                 "id": "mbid-release-001",
                                 "title": "Discovery",
                                 "date": "2001-03-12",
-                                "mediums": [
-                                    {"tracks": [{"position": 1}], "track_count": 14}
-                                ],
+                                "mediums": [{"tracks": [{"position": 1}], "track_count": 14}],
                             }
                         ],
                     }
@@ -267,17 +265,13 @@ async def test_discogs_lookup_by_query_with_release_detail(mock_settings: Settin
                 "height": 600,
             }
         ],
-        "identifiers": [
-            {"type": "Barcode", "value": "5413356611927"}
-        ],
+        "identifiers": [{"type": "Barcode", "value": "5413356611927"}],
         "tracklist": [
             {
                 "position": "1",
                 "title": "Xtal",
                 "duration": "4:54",
-                "extraartists": [
-                    {"name": "Richard D. James (2)", "role": "Written-By"}
-                ],
+                "extraartists": [{"name": "Richard D. James (2)", "role": "Written-By"}],
             },
             {
                 "position": "2",
@@ -392,7 +386,9 @@ async def test_songlink_lookup_by_url(mock_settings: Settings, mock_odesli_paylo
 
     mock_resp = httpx.Response(200, json=mock_odesli_payload)
     with patch.object(provider, "request", new=AsyncMock(return_value=mock_resp)):
-        results = await provider.lookup_by_url("https://open.spotify.com/track/1jJci4qxiYcOHhQR247rEU")
+        results = await provider.lookup_by_url(
+            "https://open.spotify.com/track/1jJci4qxiYcOHhQR247rEU"
+        )
 
     assert len(results) == 1
     track = results[0]
@@ -410,8 +406,13 @@ async def test_songlink_lookup_by_url(mock_settings: Settings, mock_odesli_paylo
 
     # Verify cross-platform link tagging
     assert track.extra_tags["SONGLINK_URL"] == "https://song.link/s/1jJci4qxiYcOHhQR247rEU"
-    assert track.extra_tags["SPOTIFY_URL"] == "https://open.spotify.com/track/1jJci4qxiYcOHhQR247rEU"
-    assert track.extra_tags["APPLE_MUSIC_URL"] == "https://music.apple.com/us/album/one-more-time/697194953?i=697195787"
+    assert (
+        track.extra_tags["SPOTIFY_URL"] == "https://open.spotify.com/track/1jJci4qxiYcOHhQR247rEU"
+    )
+    assert (
+        track.extra_tags["APPLE_MUSIC_URL"]
+        == "https://music.apple.com/us/album/one-more-time/697194953?i=697195787"
+    )
     assert track.extra_tags["DEEZER_URL"] == "https://www.deezer.com/track/3135556"
     assert track.extra_tags["YOUTUBE_URL"] == "https://youtube.com/watch?v=FGBhQbmPwH8"
     assert track.extra_tags["TIDAL_URL"] == "https://tidal.com/browse/track/594191"
@@ -484,9 +485,7 @@ async def test_songlink_lookup_by_query_text_fallback(
 
 
 @pytest.mark.asyncio
-async def test_songlink_lookup_by_isrc(
-    mock_settings: Settings, mock_odesli_payload: dict
-) -> None:
+async def test_songlink_lookup_by_isrc(mock_settings: Settings, mock_odesli_payload: dict) -> None:
     """Verify that ISRC lookup queries Deezer for streaming link and resolves via Songlink."""
     provider = SonglinkProvider(settings=mock_settings, rate_limit_delay=0.0)
 
@@ -526,5 +525,3 @@ async def test_songlink_error_handling(mock_settings: Settings) -> None:
     results_fp = await provider.lookup_by_fingerprint("dummy", 100.0)
     assert results_fp == []
     await provider.close()
-
-

@@ -17,11 +17,6 @@ import warnings
 from pathlib import Path
 from typing import Any
 
-from flac_injector.subprocess_patch import install_windows_headless_subprocess_patch
-
-# Ensure all child subprocesses on Windows are silent and detached from console
-install_windows_headless_subprocess_patch()
-
 from mutagen.flac import FLAC
 from mutagen.mp3 import MP3
 
@@ -39,7 +34,11 @@ from flac_injector.providers.songlink import SonglinkProvider
 from flac_injector.providers.spotify import SpotifyProvider
 from flac_injector.scanner import inspect_audio, scan_path
 from flac_injector.spotify_import import load_spotify_data, match_file_to_spotify
+from flac_injector.subprocess_patch import install_windows_headless_subprocess_patch
 from flac_injector.writer import inject_metadata
+
+# Ensure all child subprocesses on Windows are silent and detached from console
+install_windows_headless_subprocess_patch()
 
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -120,12 +119,14 @@ def emit_result(action: str, data: Any) -> None:
 
 def emit_error(message: str, file: str | None = None, action: str | None = None) -> None:
     """Emit a standardized error event."""
-    emit_event({
-        "type": "error",
-        "message": message,
-        "file": file,
-        "action": action,
-    })
+    emit_event(
+        {
+            "type": "error",
+            "message": message,
+            "file": file,
+            "action": action,
+        }
+    )
 
 
 def serialize_scan_result(res: ScanResult) -> dict[str, Any]:
@@ -404,11 +405,13 @@ async def run_inject_command(
                             message="Skipping uncompressed WAV file (convert_wav disabled)",
                         )
                         skipped_count += 1
-                        items_result.append({
-                            "file": str(file_path),
-                            "status": "skipped",
-                            "reason": "WAV conversion disabled",
-                        })
+                        items_result.append(
+                            {
+                                "file": str(file_path),
+                                "status": "skipped",
+                                "reason": "WAV conversion disabled",
+                            }
+                        )
                         continue
 
                     if dry_run:
@@ -436,11 +439,13 @@ async def run_inject_command(
                         message=f"Skipping already complete track: {file_path.name}",
                     )
                     skipped_count += 1
-                    items_result.append({
-                        "file": str(file_path),
-                        "status": "skipped",
-                        "reason": "Track already complete",
-                    })
+                    items_result.append(
+                        {
+                            "file": str(file_path),
+                            "status": "skipped",
+                            "reason": "Track already complete",
+                        }
+                    )
                     continue
 
                 # Stage 1: Fingerprint
@@ -519,11 +524,13 @@ async def run_inject_command(
                         sl_candidates = await songlink_provider.lookup_by_url(direct_url)
                         all_candidates.extend(sl_candidates)
                     except Exception as e:
-                        emit_event({
-                            "type": "provider_warning",
-                            "provider": "songlink",
-                            "message": str(e),
-                        })
+                        emit_event(
+                            {
+                                "type": "provider_warning",
+                                "provider": "songlink",
+                                "message": str(e),
+                            }
+                        )
 
                 # Stage 2: AcoustID & MusicBrainz
                 emit_progress(
@@ -539,11 +546,13 @@ async def run_inject_command(
                         )
                         all_candidates.extend(mb_candidates)
                     except Exception as e:
-                        emit_event({
-                            "type": "provider_warning",
-                            "provider": "musicbrainz",
-                            "message": str(e),
-                        })
+                        emit_event(
+                            {
+                                "type": "provider_warning",
+                                "provider": "musicbrainz",
+                                "message": str(e),
+                            }
+                        )
 
                 # Stage 3: ISRC or Query search across providers
                 isrc = next((c.isrc for c in all_candidates if c.isrc), None)
@@ -615,11 +624,13 @@ async def run_inject_command(
 
                 if not best:
                     failed_count += 1
-                    items_result.append({
-                        "file": str(file_path),
-                        "status": "unmatched",
-                        "reason": f"No match met confidence threshold ({threshold:.2f})",
-                    })
+                    items_result.append(
+                        {
+                            "file": str(file_path),
+                            "status": "unmatched",
+                            "reason": f"No match met confidence threshold ({threshold:.2f})",
+                        }
+                    )
                     emit_progress(
                         stage="unmatched",
                         file=str(file_path),
@@ -668,13 +679,15 @@ async def run_inject_command(
                         percent=((idx + 1) / total_files) * 100.0,
                         message=f"[DRY-RUN] Would inject {best.artist} - {best.title}",
                     )
-                    items_result.append({
-                        "file": str(file_path),
-                        "status": "dry_run",
-                        "metadata": serialize_track_metadata(best),
-                        "cover_art_url": best.cover_art_url,
-                        "confidence_score": best.confidence_score,
-                    })
+                    items_result.append(
+                        {
+                            "file": str(file_path),
+                            "status": "dry_run",
+                            "metadata": serialize_track_metadata(best),
+                            "cover_art_url": best.cover_art_url,
+                            "confidence_score": best.confidence_score,
+                        }
+                    )
                     success_count += 1
                 else:
                     emit_progress(
@@ -691,13 +704,15 @@ async def run_inject_command(
                         overwrite_existing=overwrite,
                     )
                     success_count += 1
-                    items_result.append({
-                        "file": str(file_path),
-                        "status": "injected",
-                        "metadata": serialize_track_metadata(best),
-                        "cover_art_url": best.cover_art_url,
-                        "confidence_score": best.confidence_score,
-                    })
+                    items_result.append(
+                        {
+                            "file": str(file_path),
+                            "status": "injected",
+                            "metadata": serialize_track_metadata(best),
+                            "cover_art_url": best.cover_art_url,
+                            "confidence_score": best.confidence_score,
+                        }
+                    )
                     emit_progress(
                         stage="done",
                         file=str(file_path),
@@ -706,11 +721,13 @@ async def run_inject_command(
                     )
             except Exception as e:
                 failed_count += 1
-                items_result.append({
-                    "file": str(file_path),
-                    "status": "error",
-                    "error": str(e),
-                })
+                items_result.append(
+                    {
+                        "file": str(file_path),
+                        "status": "error",
+                        "error": str(e),
+                    }
+                )
                 emit_error(f"Error processing {file_path.name}: {e}", file=str(file_path))
     finally:
         for p in providers:
@@ -804,12 +821,16 @@ async def run_match_spotify_command(
     items_result: list[dict[str, Any]] = []
     settings = get_settings()
 
-    providers = [
-        MusicBrainzProvider(settings=settings),
-        AppleITunesProvider(settings=settings),
-        DeezerProvider(settings=settings),
-        SpotifyProvider(settings=settings),
-    ] if fetch_art else []
+    providers = (
+        [
+            MusicBrainzProvider(settings=settings),
+            AppleITunesProvider(settings=settings),
+            DeezerProvider(settings=settings),
+            SpotifyProvider(settings=settings),
+        ]
+        if fetch_art
+        else []
+    )
 
     try:
         for idx, file_path in enumerate(audio_files):
@@ -818,7 +839,9 @@ async def run_match_spotify_command(
                 stage="match_spotify",
                 file=str(file_path),
                 percent=file_percent,
-                message=f"Matching {file_path.name} against {len(spotify_records)} Spotify tracks...",
+                message=(
+                    f"Matching {file_path.name} against {len(spotify_records)} Spotify tracks..."
+                ),
             )
 
             try:
@@ -826,11 +849,13 @@ async def run_match_spotify_command(
                 if scan_res.audio_format in ("wav", "wave", "aiff", "aif"):
                     if not convert_wav:
                         skipped_count += 1
-                        items_result.append({
-                            "file": str(file_path),
-                            "status": "skipped",
-                            "reason": "WAV conversion disabled",
-                        })
+                        items_result.append(
+                            {
+                                "file": str(file_path),
+                                "status": "skipped",
+                                "reason": "WAV conversion disabled",
+                            }
+                        )
                         continue
                     if dry_run:
                         emit_progress(
@@ -856,24 +881,28 @@ async def run_match_spotify_command(
                     art_mime = None
                     if fetch_art and match_res.metadata_to_inject.cover_art_url and providers:
                         for p in providers:
-                            art_res = await p.fetch_cover_art(match_res.metadata_to_inject.cover_art_url)
+                            art_res = await p.fetch_cover_art(
+                                match_res.metadata_to_inject.cover_art_url
+                            )
                             if art_res:
                                 art_bytes, art_mime = art_res
                                 break
 
                     if dry_run:
                         matched_count += 1
-                        items_result.append({
-                            "file": str(file_path),
-                            "status": "dry_run",
-                            "matched_title": match_res.spotify_record.title,
-                            "matched_artist": match_res.spotify_record.artist,
-                            "matched_album": match_res.spotify_record.album,
-                            "similarity_score": match_res.similarity_score,
-                            "gaps_filled": match_res.missing_gaps_filled,
-                            "overwritten_tags": match_res.overwritten_tags,
-                            "metadata": serialize_track_metadata(match_res.metadata_to_inject),
-                        })
+                        items_result.append(
+                            {
+                                "file": str(file_path),
+                                "status": "dry_run",
+                                "matched_title": match_res.spotify_record.title,
+                                "matched_artist": match_res.spotify_record.artist,
+                                "matched_album": match_res.spotify_record.album,
+                                "similarity_score": match_res.similarity_score,
+                                "gaps_filled": match_res.missing_gaps_filled,
+                                "overwritten_tags": match_res.overwritten_tags,
+                                "metadata": serialize_track_metadata(match_res.metadata_to_inject),
+                            }
+                        )
                     else:
                         inject_metadata(
                             file_path,
@@ -885,33 +914,44 @@ async def run_match_spotify_command(
                             overwrite_tags=match_res.overwritten_tags,
                         )
                         matched_count += 1
-                        items_result.append({
-                            "file": str(file_path),
-                            "status": "injected",
-                            "matched_title": match_res.spotify_record.title,
-                            "matched_artist": match_res.spotify_record.artist,
-                            "matched_album": match_res.spotify_record.album,
-                            "similarity_score": match_res.similarity_score,
-                            "gaps_filled": match_res.missing_gaps_filled,
-                            "overwritten_tags": match_res.overwritten_tags,
-                            "metadata": serialize_track_metadata(match_res.metadata_to_inject),
-                        })
+                        items_result.append(
+                            {
+                                "file": str(file_path),
+                                "status": "injected",
+                                "matched_title": match_res.spotify_record.title,
+                                "matched_artist": match_res.spotify_record.artist,
+                                "matched_album": match_res.spotify_record.album,
+                                "similarity_score": match_res.similarity_score,
+                                "gaps_filled": match_res.missing_gaps_filled,
+                                "overwritten_tags": match_res.overwritten_tags,
+                                "metadata": serialize_track_metadata(match_res.metadata_to_inject),
+                            }
+                        )
                 else:
                     skipped_count += 1
-                    items_result.append({
-                        "file": str(file_path),
-                        "status": "skipped",
-                        "similarity_score": match_res.similarity_score,
-                        "best_candidate": match_res.spotify_record.title if match_res.spotify_record else None,
-                        "reason": f"Similarity below threshold ({match_res.similarity_score:.2f} < {threshold:.2f})",
-                    })
+                    items_result.append(
+                        {
+                            "file": str(file_path),
+                            "status": "skipped",
+                            "similarity_score": match_res.similarity_score,
+                            "best_candidate": match_res.spotify_record.title
+                            if match_res.spotify_record
+                            else None,
+                            "reason": (
+                                "Similarity below threshold "
+                                f"({match_res.similarity_score:.2f} < {threshold:.2f})"
+                            ),
+                        }
+                    )
             except Exception as e:
                 failed_count += 1
-                items_result.append({
-                    "file": str(file_path),
-                    "status": "error",
-                    "error": str(e),
-                })
+                items_result.append(
+                    {
+                        "file": str(file_path),
+                        "status": "error",
+                        "error": str(e),
+                    }
+                )
     finally:
         for p in providers:
             await p.close()
@@ -920,7 +960,11 @@ async def run_match_spotify_command(
         stage="complete",
         file="",
         percent=100.0,
-        message=f"Spotify match complete: {matched_count} matched, {skipped_count} skipped, {failed_count} failed.",
+        message=(
+            "Spotify match complete: "
+            f"{matched_count} matched, {skipped_count} skipped, "
+            f"{failed_count} failed."
+        ),
     )
 
     return {
@@ -974,13 +1018,17 @@ async def run_convert_command(
         return {"converted": 0, "failed": 0, "items": []}
 
     settings = get_settings()
-    providers = [
-        MusicBrainzProvider(settings=settings),
-        AppleITunesProvider(settings=settings),
-        DeezerProvider(settings=settings),
-        SpotifyProvider(settings=settings),
-        DiscogsProvider(settings=settings),
-    ] if inject_tags else []
+    providers = (
+        [
+            MusicBrainzProvider(settings=settings),
+            AppleITunesProvider(settings=settings),
+            DeezerProvider(settings=settings),
+            SpotifyProvider(settings=settings),
+            DiscogsProvider(settings=settings),
+        ]
+        if inject_tags
+        else []
+    )
 
     converted_count = 0
     failed_count = 0
@@ -1003,11 +1051,13 @@ async def run_convert_command(
             )
 
             if dry_run:
-                items_result.append({
-                    "source": str(src_file),
-                    "destination": str(dest),
-                    "status": "dry_run",
-                })
+                items_result.append(
+                    {
+                        "source": str(src_file),
+                        "destination": str(dest),
+                        "status": "dry_run",
+                    }
+                )
                 converted_count += 1
                 continue
 
@@ -1044,11 +1094,13 @@ async def run_convert_command(
                 items_result.append(item_entry)
             except Exception as e:
                 failed_count += 1
-                items_result.append({
-                    "source": str(src_file),
-                    "status": "error",
-                    "error": str(e),
-                })
+                items_result.append(
+                    {
+                        "source": str(src_file),
+                        "status": "error",
+                        "error": str(e),
+                    }
+                )
                 emit_error(f"Failed to convert {src_file.name}: {e}", file=str(src_file))
     finally:
         for p in providers:
@@ -1096,36 +1148,24 @@ def get_env_settings() -> dict[str, Any]:
 
     settings = get_settings(env_file=env_path)
     return {
-        "ACOUSTID_API_KEY": raw_lines.get(
-            "ACOUSTID_API_KEY", settings.acoustid_api_key or ""
-        ),
-        "SPOTIFY_CLIENT_ID": raw_lines.get(
-            "SPOTIFY_CLIENT_ID", settings.spotify_client_id or ""
-        ),
+        "ACOUSTID_API_KEY": raw_lines.get("ACOUSTID_API_KEY", settings.acoustid_api_key or ""),
+        "SPOTIFY_CLIENT_ID": raw_lines.get("SPOTIFY_CLIENT_ID", settings.spotify_client_id or ""),
         "SPOTIFY_CLIENT_SECRET": raw_lines.get(
             "SPOTIFY_CLIENT_SECRET", settings.spotify_client_secret or ""
         ),
-        "DISCOGS_TOKEN": raw_lines.get(
-            "DISCOGS_TOKEN", settings.discogs_token or ""
-        ),
-        "SONGLINK_API_KEY": raw_lines.get(
-            "SONGLINK_API_KEY", settings.songlink_api_key or ""
-        ),
+        "DISCOGS_TOKEN": raw_lines.get("DISCOGS_TOKEN", settings.discogs_token or ""),
+        "SONGLINK_API_KEY": raw_lines.get("SONGLINK_API_KEY", settings.songlink_api_key or ""),
         "MUSICBRAINZ_USER_AGENT": raw_lines.get(
             "MUSICBRAINZ_USER_AGENT", settings.musicbrainz_user_agent
         ),
-        "RATE_LIMIT_DELAY": float(
-            raw_lines.get("RATE_LIMIT_DELAY", settings.rate_limit_delay)
-        ),
+        "RATE_LIMIT_DELAY": float(raw_lines.get("RATE_LIMIT_DELAY", settings.rate_limit_delay)),
         "COVER_ART_MIN_RESOLUTION": int(
             raw_lines.get("COVER_ART_MIN_RESOLUTION", settings.cover_art_min_resolution)
         ),
         "CONFIDENCE_THRESHOLD": float(
             raw_lines.get("CONFIDENCE_THRESHOLD", settings.confidence_threshold)
         ),
-        "REQUEST_TIMEOUT": float(
-            raw_lines.get("REQUEST_TIMEOUT", settings.request_timeout)
-        ),
+        "REQUEST_TIMEOUT": float(raw_lines.get("REQUEST_TIMEOUT", settings.request_timeout)),
         "FPCALC_PATH": raw_lines.get("FPCALC_PATH", settings.fpcalc_path),
     }
 

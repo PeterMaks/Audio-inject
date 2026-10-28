@@ -262,20 +262,6 @@ def _inspect_wav(path: Path) -> ScanResult:
     )
 
 
-PLACEHOLDER_TAG_VALUES = {
-    "unknown",
-    "unknown album",
-    "unknown artist",
-    "unknown title",
-    "untitled",
-    "none",
-    "null",
-    "no album",
-    "no artist",
-    "placeholder",
-}
-
-
 def _detect_missing_fields(existing_tags: dict[str, list[str]]) -> list[str]:
     """Identify which core and recommended tags are missing or set to unknown placeholders."""
     missing: list[str] = []
@@ -285,7 +271,7 @@ def _detect_missing_fields(existing_tags: dict[str, list[str]]) -> list[str]:
                 continue
             missing.append(tag)
         else:
-            # Check if all values for this tag are empty or placeholder values (e.g. "Unknown Album")
+            # Check if all values for this tag are empty or placeholders (e.g. "Unknown Album")
             clean_vals = [
                 str(v).strip()
                 for v in existing_tags[tag]

@@ -144,4 +144,3 @@ def test_inject_multi_artist_mp3(tmp_path: Path) -> None:
 
     scan = inspect_audio(mp3_file)
     assert scan.existing_tags["ARTIST"] == ["The Kid LAROI", "Justin Bieber"]
-

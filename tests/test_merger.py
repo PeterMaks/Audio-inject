@@ -163,7 +163,7 @@ def test_aggregate_candidates_below_threshold() -> None:
 
 
 def test_aggregate_candidates_replaces_unknown_album() -> None:
-    """Test that waterfall replaces 'Unknown Album' with a real album title from other candidates."""
+    """Test that waterfall replaces 'Unknown Album' with a real album from other candidates."""
     mb_cand = TrackMetadata(
         title="OveR",
         artist="Miyu Tomita",
@@ -193,7 +193,6 @@ def test_aggregate_candidates_replaces_unknown_album() -> None:
     assert merged is not None
     assert merged.album == "OveR - Single"  # Successfully replaced Unknown Album!
     assert merged.cover_art_url == "https://example.com/cover3000.jpg"
-
 
 
 def test_parse_filename_metadata_patterns() -> None:

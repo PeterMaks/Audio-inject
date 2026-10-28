@@ -7,18 +7,29 @@ import pytest
 
 from flac_injector.models import ScanResult
 from flac_injector.spotify_import import (
-    SpotifyTrackRecord,
     calculate_similarity,
     load_spotify_data,
     match_file_to_spotify,
 )
 
-SAMPLE_EXPORTIFY_CSV = """Track URI,Track Name,Album Name,Artist Name(s),Release Date,Duration (ms),Popularity,Explicit,Added By,Added At,Genres,Record Label,Danceability,Energy,Key,Loudness,Mode,Speechiness,Acousticness,Instrumentalness,Liveness,Valence,Tempo,Time Signature
-spotify:track:0oCP1Vu9LGVP88atKzOswC,"ambiguous","Linkage Ring","GARNiDELiA",2015-01-21,272480,49,false,,2026-09-25T19:30:14Z,"anime,j-pop,j-rock","Sony Music Labels Inc.",0.441,0.962,0,-2.299,1,0.108,0.142,0.000103,0.317,0.592,178.201,4
-spotify:track:1rQaY7Y6YtKHO7aVSWMU6r,"hope to see this dawn","hope to see this dawn","plenka",2026-09-03,184173,46,false,,2026-09-20T12:50:37Z,"witch house,drift phonk,phonk","plenka",0.655,0.861,1,-5.438,1,0.167,0.508,0.954,0.119,0.111,114.997,4
-spotify:track:7ttWQnVvBPEVKRV6nPSCjB,"Lamp Light","Wolf Boy","YOUTH 83;A.L.I.S.O.N",2023-03-10,203294,36,false,,2026-09-09T13:47:57Z,"synthwave,chillwave,vaporwave","YOUTH 83 under exclusive license to Amuseio AB",0.451,0.552,8,-12.194,1,0.0357,0.174,0.762,0.153,0.149,84.994,4
-spotify:track:2ybKKZwHJ81SpJ2kFHVCUC,"Cash Shit","Cash Carti","Middens",2025-09-10,153513,51,true,,2026-08-29T17:30:14Z,"","Dvpper Digital",0.728,0.626,1,-5.581,1,0.226,0.0564,0.000259,0.129,0.346,161.097,4
-"""
+SAMPLE_EXPORTIFY_CSV = (
+    "Track URI,Track Name,Album Name,Artist Name(s),Release Date,Duration (ms),Popularity,"
+    "Explicit,Added By,Added At,Genres,Record Label,Danceability,Energy,Key,Loudness,Mode,"
+    "Speechiness,Acousticness,Instrumentalness,Liveness,Valence,Tempo,Time Signature\n"
+    'spotify:track:0oCP1Vu9LGVP88atKzOswC,"ambiguous","Linkage Ring","GARNiDELiA",'
+    '2015-01-21,272480,49,false,,2026-09-25T19:30:14Z,"anime,j-pop,j-rock",'
+    '"Sony Music Labels Inc.",0.441,0.962,0,-2.299,1,0.108,0.142,0.000103,0.317,0.592,178.201,4\n'
+    'spotify:track:1rQaY7Y6YtKHO7aVSWMU6r,"hope to see this dawn","hope to see this dawn",'
+    '"plenka",2026-09-03,184173,46,false,,2026-09-20T12:50:37Z,"witch house,drift phonk,phonk",'
+    '"plenka",0.655,0.861,1,-5.438,1,0.167,0.508,0.954,0.119,0.111,114.997,4\n'
+    'spotify:track:7ttWQnVvBPEVKRV6nPSCjB,"Lamp Light","Wolf Boy","YOUTH 83;A.L.I.S.O.N",'
+    '2023-03-10,203294,36,false,,2026-09-09T13:47:57Z,"synthwave,chillwave,vaporwave",'
+    '"YOUTH 83 under exclusive license to Amuseio AB",'
+    "0.451,0.552,8,-12.194,1,0.0357,0.174,0.762,0.153,0.149,84.994,4\n"
+    'spotify:track:2ybKKZwHJ81SpJ2kFHVCUC,"Cash Shit","Cash Carti","Middens",'
+    '2025-09-10,153513,51,true,,2026-08-29T17:30:14Z,"","Dvpper Digital",'
+    "0.728,0.626,1,-5.581,1,0.226,0.0564,0.000259,0.129,0.346,161.097,4\n"
+)
 
 
 def test_load_spotify_data_csv() -> None:
@@ -158,7 +169,9 @@ def test_match_file_to_spotify_gap_filling() -> None:
         is_incomplete=True,
     )
     records = load_spotify_data(SAMPLE_EXPORTIFY_CSV)
-    match_res = match_file_to_spotify(scan.path, records, threshold=0.70, overwrite=False, scan_result=scan)
+    match_res = match_file_to_spotify(
+        scan.path, records, threshold=0.70, overwrite=False, scan_result=scan
+    )
 
     assert match_res.is_match is True
     assert match_res.similarity_score >= 0.85
@@ -198,21 +211,29 @@ def test_match_file_to_spotify_overwrite() -> None:
     )
     records = load_spotify_data(SAMPLE_EXPORTIFY_CSV)
     # With overwrite=False, existing album should be preserved
-    res_no_ow = match_file_to_spotify(scan.path, records, threshold=0.70, overwrite=False, scan_result=scan)
+    res_no_ow = match_file_to_spotify(
+        scan.path, records, threshold=0.70, overwrite=False, scan_result=scan
+    )
     assert res_no_ow.is_match is True
     assert res_no_ow.metadata_to_inject.album == "Old Album Name"
 
     # With overwrite=True, existing album should be updated to Spotify's 'Wolf Boy'
-    res_ow = match_file_to_spotify(scan.path, records, threshold=0.70, overwrite=True, scan_result=scan)
+    res_ow = match_file_to_spotify(
+        scan.path, records, threshold=0.70, overwrite=True, scan_result=scan
+    )
     assert res_ow.is_match is True
     assert res_ow.metadata_to_inject.album == "Wolf Boy"
     assert "ALBUM" in res_ow.overwritten_tags
 
 
-def test_match_file_to_spotify_mismatched_tags_overwrite(untagged_flac: Path, tmp_path: Path) -> None:
-    """Test that files with mismatched artist/song name tags are matched by filename and overwritten."""
+def test_match_file_to_spotify_mismatched_tags_overwrite(
+    untagged_flac: Path, tmp_path: Path
+) -> None:
+    """Test that files with mismatched artist/song name tags match filename and overwrite."""
     import shutil
+
     from mutagen.flac import FLAC
+
     from flac_injector.writer import inject_metadata
 
     flac_file = tmp_path / "GARNiDELiA - ambiguous.flac"
@@ -240,7 +261,12 @@ def test_match_file_to_spotify_mismatched_tags_overwrite(untagged_flac: Path, tm
     assert res.metadata_to_inject.album == "Linkage Ring"
 
     # 2. Inject to disk using overwrite_tags
-    inject_metadata(flac_file, res.metadata_to_inject, overwrite_existing=False, overwrite_tags=res.overwritten_tags)
+    inject_metadata(
+        flac_file,
+        res.metadata_to_inject,
+        overwrite_existing=False,
+        overwrite_tags=res.overwritten_tags,
+    )
 
     # 3. Verify directly on disk
     updated_audio = FLAC(str(flac_file))
@@ -249,9 +275,12 @@ def test_match_file_to_spotify_mismatched_tags_overwrite(untagged_flac: Path, tm
     assert updated_audio["ALBUM"] == ["Linkage Ring"]
 
 
-def test_match_file_to_spotify_mismatched_preserved_when_flag_disabled(untagged_flac: Path, tmp_path: Path) -> None:
+def test_match_file_to_spotify_mismatched_preserved_when_flag_disabled(
+    untagged_flac: Path, tmp_path: Path
+) -> None:
     """Test that mismatched tags are preserved when overwrite_mismatched=False."""
     import shutil
+
     from mutagen.flac import FLAC
 
     flac_file = tmp_path / "GARNiDELiA - ambiguous.flac"
@@ -265,7 +294,9 @@ def test_match_file_to_spotify_mismatched_preserved_when_flag_disabled(untagged_
 
     records = load_spotify_data(SAMPLE_EXPORTIFY_CSV)
 
-    res = match_file_to_spotify(flac_file, records, threshold=0.70, overwrite=False, overwrite_mismatched=False)
+    res = match_file_to_spotify(
+        flac_file, records, threshold=0.70, overwrite=False, overwrite_mismatched=False
+    )
     assert res.is_match is True
     # When overwrite_mismatched=False and overwrite=False, existing tags should be preserved
     assert res.metadata_to_inject.title == "Track 01"
@@ -275,12 +306,13 @@ def test_match_file_to_spotify_mismatched_preserved_when_flag_disabled(untagged_
     assert "ARTIST" not in res.overwritten_tags
 
 
-
 def test_cli_match_spotify_dry_run(untagged_flac: Path, tmp_path: Path) -> None:
     """Test CLI match-spotify with --dry-run option."""
     import shutil
-    from typer.testing import CliRunner
+
     from mutagen.flac import FLAC
+    from typer.testing import CliRunner
+
     from flac_injector.cli import app
 
     flac_file = tmp_path / "GARNiDELiA - ambiguous.flac"
@@ -304,8 +336,10 @@ def test_cli_match_spotify_dry_run(untagged_flac: Path, tmp_path: Path) -> None:
 def test_cli_match_spotify_injection(untagged_flac: Path, tmp_path: Path) -> None:
     """Test CLI match-spotify injecting metadata to fill gaps in a FLAC file."""
     import shutil
-    from typer.testing import CliRunner
+
     from mutagen.flac import FLAC
+    from typer.testing import CliRunner
+
     from flac_injector.cli import app
 
     flac_file = tmp_path / "track_ambiguous.flac"
@@ -338,8 +372,10 @@ def test_cli_match_spotify_injection(untagged_flac: Path, tmp_path: Path) -> Non
 def test_cli_match_spotify_overwrites_mismatched_tags(untagged_flac: Path, tmp_path: Path) -> None:
     """Test that CLI match-spotify detects mismatched tags by filename and overwrites them."""
     import shutil
-    from typer.testing import CliRunner
+
     from mutagen.flac import FLAC
+    from typer.testing import CliRunner
+
     from flac_injector.cli import app
 
     flac_file = tmp_path / "GARNiDELiA - ambiguous.flac"
@@ -367,12 +403,13 @@ def test_cli_match_spotify_overwrites_mismatched_tags(untagged_flac: Path, tmp_p
     assert updated_audio["ALBUM"] == ["Linkage Ring"]
 
 
-
 def test_cli_import_spotify_alias(untagged_flac: Path, tmp_path: Path) -> None:
     """Test CLI import-spotify alias works identically."""
     import shutil
-    from typer.testing import CliRunner
+
     from mutagen.flac import FLAC
+    from typer.testing import CliRunner
+
     from flac_injector.cli import app
 
     flac_file = tmp_path / "hope to see this dawn.flac"
@@ -387,7 +424,9 @@ def test_cli_import_spotify_alias(untagged_flac: Path, tmp_path: Path) -> None:
     csv_file.write_text(SAMPLE_EXPORTIFY_CSV, encoding="utf-8")
 
     runner = CliRunner(env={"COLUMNS": "300"})
-    result = runner.invoke(app, ["import-spotify", str(flac_file), "--data", str(csv_file), "--dry-run"])
+    result = runner.invoke(
+        app, ["import-spotify", str(flac_file), "--data", str(csv_file), "--dry-run"]
+    )
     assert result.exit_code == 0
     assert "Matched: 1" in result.output
 
@@ -396,8 +435,10 @@ def test_cli_import_spotify_alias(untagged_flac: Path, tmp_path: Path) -> None:
 async def test_bridge_run_match_spotify_command(untagged_flac: Path, tmp_path: Path) -> None:
     """Test bridge action run_match_spotify_command."""
     import shutil
-    from flac_injector.bridge import run_match_spotify_command
+
     from mutagen.flac import FLAC
+
+    from flac_injector.bridge import run_match_spotify_command
 
     flac_file = tmp_path / "plenka - hope to see this dawn.flac"
     shutil.copy(untagged_flac, flac_file)
@@ -460,9 +501,11 @@ def test_resolve_album_name_hierarchy() -> None:
 
 
 def test_writer_replaces_placeholder_album_flac(untagged_flac: Path, tmp_path: Path) -> None:
-    """Verify inject_metadata overwrites 'Unknown Album' in FLAC even when overwrite_existing=False."""
+    """Verify inject_metadata overwrites 'Unknown Album' in FLAC when overwrite_existing=False."""
     import shutil
+
     from mutagen.flac import FLAC
+
     from flac_injector.models import TrackMetadata
     from flac_injector.writer import inject_metadata
 
@@ -490,10 +533,12 @@ def test_writer_replaces_placeholder_album_flac(untagged_flac: Path, tmp_path: P
 
 
 def test_writer_replaces_placeholder_album_mp3(untagged_mp3: Path, tmp_path: Path) -> None:
-    """Verify inject_metadata overwrites 'Unknown Album' in MP3 even when overwrite_existing=False."""
+    """Verify inject_metadata overwrites 'Unknown Album' in MP3 when overwrite_existing=False."""
     import shutil
-    from mutagen.mp3 import MP3
+
     from mutagen.id3 import ID3, TALB, TIT2, TPE1
+    from mutagen.mp3 import MP3
+
     from flac_injector.models import TrackMetadata
     from flac_injector.writer import inject_metadata
 
@@ -524,8 +569,10 @@ def test_writer_single_label_across_formats(
 ) -> None:
     """Verify that a single track is labeled as '{title} - Single' across FLAC and MP3."""
     import shutil
+
     from mutagen.flac import FLAC
     from mutagen.mp3 import MP3
+
     from flac_injector.models import TrackMetadata
     from flac_injector.writer import inject_metadata
 
@@ -559,8 +606,10 @@ def test_writer_unknown_album_fallback_across_formats(
 ) -> None:
     """Verify fallback to 'Unknown Album' across FLAC and MP3 when both album and title fail."""
     import shutil
+
     from mutagen.flac import FLAC
     from mutagen.mp3 import MP3
+
     from flac_injector.models import TrackMetadata
     from flac_injector.writer import inject_metadata
 
@@ -581,6 +630,3 @@ def test_writer_unknown_album_fallback_across_formats(
     shutil.copy(untagged_mp3, mp3_target)
     inject_metadata(mp3_target, fallback_meta)
     assert MP3(str(mp3_target)).tags["TALB"].text == ["Unknown Album"]
-
-
-

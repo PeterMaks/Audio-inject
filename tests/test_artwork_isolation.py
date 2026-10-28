@@ -1,6 +1,5 @@
-"""Unit tests for artwork provenance verification, compilation deprioritization, and batch isolation."""
+"""Unit tests for artwork verification, compilation deprioritization, and batch isolation."""
 
-from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -8,10 +7,7 @@ import pytest
 
 from flac_injector.artwork import (
     ArtworkCache,
-    is_generic_album,
-    is_generic_artist,
     make_artwork_cache_key,
-    resolve_local_folder_art,
     verify_artwork_candidate,
 )
 from flac_injector.config import Settings
@@ -21,7 +17,7 @@ from flac_injector.providers.musicbrainz import MusicBrainzProvider, score_relea
 
 
 def test_verify_artwork_candidate_artist_mismatch() -> None:
-    """Artist mismatch gate: High-res cover for song with same title by different artist MUST be rejected."""
+    """Artist mismatch gate: High-res cover for same title by different artist MUST be rejected."""
     track = TrackMetadata(
         title="Creep",
         artist="Radiohead",
@@ -86,7 +82,7 @@ def test_verify_artwork_candidate_isrc_bypass() -> None:
 
 
 def test_aggregate_candidates_rejects_artist_mismatch_artwork() -> None:
-    """Test that aggregate_candidates leaves cover_art_url None rather than taking mismatched art."""
+    """Test that aggregate_candidates leaves cover_art_url None instead of taking mismatched art."""
     winning_cand = TrackMetadata(
         title="One More Time",
         artist="Daft Punk",
@@ -232,7 +228,9 @@ def test_batch_isolation_across_tracks() -> None:
         confidence_score=0.95,
         source_provider="apple_itunes",
     )
-    res1 = aggregate_candidates([t1_cand], file_duration=200.0, hints={"title": "Song One", "artist": "Artist One"})
+    res1 = aggregate_candidates(
+        [t1_cand], file_duration=200.0, hints={"title": "Song One", "artist": "Artist One"}
+    )
     assert res1 is not None
     assert res1.cover_art_url == "https://example.com/art1_3000.jpg"
 
@@ -245,7 +243,9 @@ def test_batch_isolation_across_tracks() -> None:
         confidence_score=0.92,
         source_provider="musicbrainz",
     )
-    res2 = aggregate_candidates([t2_cand], file_duration=180.0, hints={"title": "Song Two", "artist": "Artist Two"})
+    res2 = aggregate_candidates(
+        [t2_cand], file_duration=180.0, hints={"title": "Song Two", "artist": "Artist Two"}
+    )
     assert res2 is not None
     # Must be completely isolated with ZERO bleed from Track 1
     assert res2.cover_art_url is None
@@ -262,7 +262,9 @@ def test_batch_isolation_across_tracks() -> None:
         confidence_score=0.90,
         source_provider="deezer",
     )
-    res3 = aggregate_candidates([t3_cand], file_duration=220.0, hints={"title": "Song Three", "artist": "Artist Three"})
+    res3 = aggregate_candidates(
+        [t3_cand], file_duration=220.0, hints={"title": "Song Three", "artist": "Artist Three"}
+    )
     assert res3 is not None
     assert res3.cover_art_url == "https://example.com/art3_1000.jpg"
 

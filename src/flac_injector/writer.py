@@ -132,11 +132,12 @@ def _inject_flac(
         force_ow = overwrite_existing or (key_upper in clean_overwrite_tags)
         if not force_ow and key_upper in audio and audio[key_upper]:
             existing_vals = audio[key_upper]
-            # If all existing values are placeholders (e.g. "Unknown Album"), treat as gap to overwrite
+            # If all existing values are placeholders (e.g. "Unknown Album"), overwrite
             clean_existing = [
                 str(v).strip()
                 for v in existing_vals
-                if str(v).strip() and str(v).strip().lower().strip("\"'") not in PLACEHOLDER_TAG_VALUES
+                if str(v).strip()
+                and str(v).strip().lower().strip("\"'") not in PLACEHOLDER_TAG_VALUES
             ]
             if clean_existing:
                 # Deduplicate existing tag values if they contain duplicate entries
@@ -166,6 +167,7 @@ def _inject_flac(
     # Guard existing valid cover art meeting COVER_ART_MIN_RESOLUTION
     if art_data and not overwrite_existing and not overwrite_art:
         from flac_injector.config import get_settings
+
         min_res = get_settings().cover_art_min_resolution
         has_valid_cover = any(
             getattr(p, "type", None) == 3
@@ -181,11 +183,7 @@ def _inject_flac(
             with Image.open(io.BytesIO(art_data)) as img:
                 width, height = img.size
                 img_format = (img.format or "JPEG").upper()
-                mime = (
-                    cover_art_mime
-                    or metadata.cover_art_mime
-                    or f"image/{img_format.lower()}"
-                )
+                mime = cover_art_mime or metadata.cover_art_mime or f"image/{img_format.lower()}"
                 if mime == "image/jpg":
                     mime = "image/jpeg"
 
@@ -237,9 +235,7 @@ def _inject_flac(
     try:
         verify_audio = FLAC(str(path))
         verified_tags = (
-            {k.upper(): v for k, v in verify_audio.tags.items()}
-            if verify_audio.tags
-            else {}
+            {k.upper(): v for k, v in verify_audio.tags.items()} if verify_audio.tags else {}
         )
         verified_has_cover = any(getattr(p, "type", None) == 3 for p in verify_audio.pictures)
 
@@ -311,7 +307,8 @@ def _apply_id3_tags(
             clean_curr = [
                 str(t).strip()
                 for t in curr_text
-                if str(t).strip() and str(t).strip().lower().strip("\"'") not in PLACEHOLDER_TAG_VALUES
+                if str(t).strip()
+                and str(t).strip().lower().strip("\"'") not in PLACEHOLDER_TAG_VALUES
             ]
             if clean_curr:
                 return  # Genuine frame value exists; preserve it
@@ -363,6 +360,7 @@ def _apply_id3_tags(
     # Guard existing valid cover art meeting COVER_ART_MIN_RESOLUTION
     if art_data and not overwrite_existing and not overwrite_art:
         from flac_injector.config import get_settings
+
         min_res = get_settings().cover_art_min_resolution
         apic_frames = tags.getall("APIC") if hasattr(tags, "getall") else []
         has_valid_cover = False
@@ -384,11 +382,7 @@ def _apply_id3_tags(
             with Image.open(io.BytesIO(art_data)) as img:
                 width, height = img.size
                 img_format = (img.format or "JPEG").upper()
-                mime = (
-                    cover_art_mime
-                    or metadata.cover_art_mime
-                    or f"image/{img_format.lower()}"
-                )
+                mime = cover_art_mime or metadata.cover_art_mime or f"image/{img_format.lower()}"
                 if mime == "image/jpg":
                     mime = "image/jpeg"
 

@@ -62,9 +62,7 @@ def calculate_confidence(
             base_score = artist_sim * 0.8
         else:
             base_score = (
-                max(0.75, candidate.confidence_score)
-                if candidate.confidence_score > 0
-                else 0.50
+                max(0.75, candidate.confidence_score) if candidate.confidence_score > 0 else 0.50
             )
 
     # Check for duration delta penalty or match bonus if candidate has duration info
@@ -115,9 +113,18 @@ def aggregate_candidates(
     for _, cand in scored_candidates[1:]:
         # 0. Replace placeholder album or artist with real metadata from remaining candidates
         if merged.album.strip().lower() in ("unknown album", "unknown", "untitled", ""):
-            if cand.album and cand.album.strip().lower() not in ("unknown album", "unknown", "untitled", ""):
+            if cand.album and cand.album.strip().lower() not in (
+                "unknown album",
+                "unknown",
+                "untitled",
+                "",
+            ):
                 merged.album = cand.album
-                if cand.album_artist and cand.album_artist.strip().lower() not in ("unknown", "unknown artist", ""):
+                if cand.album_artist and cand.album_artist.strip().lower() not in (
+                    "unknown",
+                    "unknown artist",
+                    "",
+                ):
                     merged.album_artist = cand.album_artist
 
         if merged.artist.strip().lower() in ("unknown artist", "unknown", ""):

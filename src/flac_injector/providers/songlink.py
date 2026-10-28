@@ -179,12 +179,13 @@ class SonglinkProvider(BaseMetadataProvider):
         for ent in entities.values():
             if isinstance(ent, dict):
                 cand_album = (
-                    ent.get("albumName")
-                    or ent.get("albumTitle")
-                    or ent.get("collectionName")
+                    ent.get("albumName") or ent.get("albumTitle") or ent.get("collectionName")
                 )
                 if cand_album and str(cand_album).strip().lower() not in (
-                    "unknown", "unknown album", "untitled", ""
+                    "unknown",
+                    "unknown album",
+                    "untitled",
+                    "",
                 ):
                     album = str(cand_album).strip()
                     break

@@ -41,7 +41,7 @@ def install_windows_headless_subprocess_patch() -> None:
 
 
 def get_windows_headless_kwargs() -> dict[str, Any]:
-    """Return creationflags and startupinfo dictionary for headless subprocess execution on Windows."""
+    """Return creationflags & startupinfo for headless subprocess execution on Windows."""
     if sys.platform != "win32":
         return {}
     si = subprocess.STARTUPINFO()

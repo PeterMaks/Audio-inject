@@ -5,11 +5,6 @@ import sys
 from pathlib import Path
 from typing import Annotated, Any
 
-from flac_injector.subprocess_patch import install_windows_headless_subprocess_patch
-
-# Ensure all child subprocesses on Windows are silent and detached from console
-install_windows_headless_subprocess_patch()
-
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -30,7 +25,11 @@ from flac_injector.providers.songlink import SonglinkProvider
 from flac_injector.providers.spotify import SpotifyProvider
 from flac_injector.scanner import inspect_audio, scan_path
 from flac_injector.spotify_import import load_spotify_data, match_file_to_spotify
+from flac_injector.subprocess_patch import install_windows_headless_subprocess_patch
 from flac_injector.writer import clean_embedded_art, inject_metadata
+
+# Ensure all child subprocesses on Windows are silent and detached from console
+install_windows_headless_subprocess_patch()
 
 if sys.platform == "win32":
     try:
@@ -268,21 +267,21 @@ async def _resolve_and_inject_track(
             scan_res = inspect_audio(file_path)
 
     existing_album = scan_res.existing_tags.get("ALBUM", [""])[0].strip()
-    is_unknown_album = (
-        not existing_album
-        or existing_album.lower() in {
-            "unknown", "unknown album", "untitled", "none", "no album", "placeholder"
-        }
-    )
+    is_unknown_album = not existing_album or existing_album.lower() in {
+        "unknown",
+        "unknown album",
+        "untitled",
+        "none",
+        "no album",
+        "placeholder",
+    }
 
     matches_overwrite_album = bool(
         overwrite_album and existing_album.lower() == overwrite_album.strip().lower()
     )
 
     should_overwrite_this_track = (
-        overwrite
-        or (overwrite_unknown and is_unknown_album)
-        or matches_overwrite_album
+        overwrite or (overwrite_unknown and is_unknown_album) or matches_overwrite_album
     )
 
     if not scan_res.is_incomplete and not should_overwrite_this_track and not overwrite_art:
@@ -433,10 +432,7 @@ async def _resolve_and_inject_track(
     art_bytes = None
     art_mime = None
     should_fetch_art = (
-        not scan_res.has_cover_art
-        or overwrite
-        or overwrite_art
-        or should_overwrite_this_track
+        not scan_res.has_cover_art or overwrite or overwrite_art or should_overwrite_this_track
     )
     if best.cover_art_url and should_fetch_art:
         if art_cache:
@@ -508,7 +504,10 @@ def inject(
     ] = False,
     overwrite_art: Annotated[
         bool,
-        typer.Option("--overwrite-art", help="Force re-resolving and replacing album art even if track is complete."),
+        typer.Option(
+            "--overwrite-art",
+            help="Force re-resolving and replacing album art even if track is complete.",
+        ),
     ] = False,
     overwrite_unknown: Annotated[
         bool,
@@ -521,7 +520,10 @@ def inject(
         str | None,
         typer.Option(
             "--overwrite-album",
-            help="Selectively overwrite tracks whose existing album matches this specific name (e.g. 'Unknown Album').",
+            help=(
+                "Selectively overwrite tracks whose existing album matches this specific name "
+                "(e.g. 'Unknown Album')."
+            ),
         ),
     ] = None,
     song_link: Annotated[
@@ -559,7 +561,8 @@ def inject(
     else:
         glob_pat = "**/*" if recursive else "*"
         audio_files = [
-            p for p in sorted(target.glob(glob_pat))
+            p
+            for p in sorted(target.glob(glob_pat))
             if p.is_file() and p.suffix.lower() in allowed_exts
         ]
 
@@ -615,11 +618,15 @@ def match_spotify(
     ] = None,
     threshold: Annotated[
         float,
-        typer.Option("--threshold", "-t", help="Minimum similarity threshold (0.0 to 1.0, default 0.70)."),
+        typer.Option(
+            "--threshold", "-t", help="Minimum similarity threshold (0.0 to 1.0, default 0.70)."
+        ),
     ] = 0.70,
     dry_run: Annotated[
         bool,
-        typer.Option("--dry-run", help="Preview matches and metadata updates without modifying files."),
+        typer.Option(
+            "--dry-run", help="Preview matches and metadata updates without modifying files."
+        ),
     ] = False,
     overwrite: Annotated[
         bool,
@@ -632,7 +639,10 @@ def match_spotify(
         bool,
         typer.Option(
             "--overwrite-mismatched/--no-overwrite-mismatched",
-            help="Overwrite existing metadata tags (artist, title, album) if they do not match or have low similarity to the filename / Spotify track.",
+            help=(
+                "Overwrite existing metadata tags (artist, title, album) if they do not match "
+                "or have low similarity to the filename / Spotify track."
+            ),
         ),
     ] = True,
     overwrite_art: Annotated[
@@ -661,7 +671,7 @@ def match_spotify(
         typer.Option("--recursive/--no-recursive", "-r", help="Recurse into subdirectories."),
     ] = True,
 ) -> None:
-    """Compare and match audio files against exported Spotify data (CSV or JSON) and fill metadata gaps."""
+    """Compare and match audio files against exported Spotify data (CSV or JSON)."""
     # 1. Resolve data file path
     spotify_data_path = data or data_file
     if not spotify_data_path:
@@ -685,17 +695,20 @@ def match_spotify(
         spotify_records = load_spotify_data(spotify_data_path)
     except Exception as exc:
         console.print(f"[bold red]Failed to parse Spotify export file:[/bold red] {exc}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from exc
 
     if not spotify_records:
-        console.print(f"[bold yellow]No valid track records found in:[/bold yellow] {spotify_data_path}")
+        console.print(
+            f"[bold yellow]No valid track records found in:[/bold yellow] {spotify_data_path}"
+        )
         return
 
     console.print(
         Panel(
             f"Loaded [bold green]{len(spotify_records)}[/bold green] track records from "
             f"[bold]{spotify_data_path.name}[/bold]\n"
-            f"Matching against: [bold]{target}[/bold] (Similarity Threshold: [bold cyan]{threshold:.2f}[/bold cyan])\n"
+            f"Matching against: [bold]{target}[/bold] "
+            f"(Similarity Threshold: [bold cyan]{threshold:.2f}[/bold cyan])\n"
             f"Mode: [bold]{'FULL OVERWRITE' if overwrite else 'FILL METADATA GAPS ONLY'}[/bold]"
             f"{' [bold yellow][DRY-RUN PREVIEW][/bold yellow]' if dry_run else ''}",
             title="Spotify Metadata Matcher",
@@ -713,7 +726,8 @@ def match_spotify(
     else:
         glob_pat = "**/*" if recursive else "*"
         audio_files = [
-            p for p in sorted(target.glob(glob_pat))
+            p
+            for p in sorted(target.glob(glob_pat))
             if p.is_file() and p.suffix.lower() in allowed_exts
         ]
 
@@ -727,7 +741,9 @@ def match_spotify(
     total_gaps_filled = 0
 
     table = Table(
-        title=f"Spotify Track Matching ({len(audio_files)} files vs {len(spotify_records)} records)",
+        title=(
+            f"Spotify Track Matching ({len(audio_files)} files vs {len(spotify_records)} records)"
+        ),
         header_style="bold cyan",
     )
     table.add_column("Audio File", style="dim", no_wrap=True)
@@ -742,14 +758,16 @@ def match_spotify(
 
     async def _process_files() -> None:
         nonlocal matched_count, skipped_count, total_gaps_filled
-        providers = [
-            MusicBrainzProvider(settings=settings),
-            AppleITunesProvider(settings=settings),
-            DeezerProvider(settings=settings),
-            SpotifyProvider(settings=settings),
-        ] if fetch_art else []
-
-        art_cache = ArtworkCache() if fetch_art else None
+        providers = (
+            [
+                MusicBrainzProvider(settings=settings),
+                AppleITunesProvider(settings=settings),
+                DeezerProvider(settings=settings),
+                SpotifyProvider(settings=settings),
+            ]
+            if fetch_art
+            else []
+        )
 
         try:
             for file_path in audio_files:
@@ -759,7 +777,9 @@ def match_spotify(
                     if not convert_wav:
                         continue
                     if dry_run:
-                        console.print(f"[dim cyan][DRY-RUN] Would convert {file_path.name} to FLAC[/dim cyan]")
+                        console.print(
+                            f"[dim cyan][DRY-RUN] Would convert {file_path.name} to FLAC[/dim cyan]"
+                        )
                     else:
                         file_path = convert_to_flac(file_path)
                         scan_res = inspect_audio(file_path)
@@ -780,9 +800,17 @@ def match_spotify(
 
                     gaps_desc: list[str] = []
                     if match_res.missing_gaps_filled:
-                        gaps_desc.append(f"[green]+{len(match_res.missing_gaps_filled)} gaps[/green] ({', '.join(match_res.missing_gaps_filled[:3])})")
+                        filled_preview = ", ".join(match_res.missing_gaps_filled[:3])
+                        gaps_desc.append(
+                            f"[green]+{len(match_res.missing_gaps_filled)} gaps[/green] "
+                            f"({filled_preview})"
+                        )
                     if match_res.overwritten_tags:
-                        gaps_desc.append(f"[yellow]~{len(match_res.overwritten_tags)} overwrites[/yellow] ({', '.join(match_res.overwritten_tags[:3])})")
+                        overwritten_preview = ", ".join(match_res.overwritten_tags[:3])
+                        gaps_desc.append(
+                            f"[yellow]~{len(match_res.overwritten_tags)} overwrites[/yellow] "
+                            f"({overwritten_preview})"
+                        )
                     actions_str = " | ".join(gaps_desc) if gaps_desc else "[dim]No new tags[/dim]"
 
                     # Cover art fetching if requested
@@ -790,7 +818,9 @@ def match_spotify(
                     art_mime = None
                     if fetch_art and match_res.metadata_to_inject.cover_art_url and providers:
                         for p in providers:
-                            art_res = await p.fetch_cover_art(match_res.metadata_to_inject.cover_art_url)
+                            art_res = await p.fetch_cover_art(
+                                match_res.metadata_to_inject.cover_art_url
+                            )
                             if art_res:
                                 art_bytes, art_mime = art_res
                                 break
@@ -821,13 +851,16 @@ def match_spotify(
                 else:
                     skipped_count += 1
                     best_hint = (
-                        f"{match_res.spotify_record.title} ({match_res.similarity_score * 100:.1f}%)"
+                        f"{match_res.spotify_record.title} "
+                        f"({match_res.similarity_score * 100:.1f}%)"
                         if match_res.spotify_record and match_res.similarity_score > 0
                         else "-"
                     )
                     table.add_row(
                         file_path.name,
-                        f"[dim red]{match_res.similarity_score * 100:.1f}%[/dim red]" if match_res.similarity_score > 0 else "[dim]-[/dim]",
+                        f"[dim red]{match_res.similarity_score * 100:.1f}%[/dim red]"
+                        if match_res.similarity_score > 0
+                        else "[dim]-[/dim]",
                         f"[dim]{best_hint}[/dim]",
                         "-",
                         "-",
@@ -866,11 +899,15 @@ def import_spotify(
     ] = None,
     threshold: Annotated[
         float,
-        typer.Option("--threshold", "-t", help="Minimum similarity threshold (0.0 to 1.0, default 0.70)."),
+        typer.Option(
+            "--threshold", "-t", help="Minimum similarity threshold (0.0 to 1.0, default 0.70)."
+        ),
     ] = 0.70,
     dry_run: Annotated[
         bool,
-        typer.Option("--dry-run", help="Preview matches and metadata updates without modifying files."),
+        typer.Option(
+            "--dry-run", help="Preview matches and metadata updates without modifying files."
+        ),
     ] = False,
     overwrite: Annotated[
         bool,
@@ -883,7 +920,10 @@ def import_spotify(
         bool,
         typer.Option(
             "--overwrite-mismatched/--no-overwrite-mismatched",
-            help="Overwrite existing metadata tags (artist, title, album) if they do not match or have low similarity to the filename / Spotify track.",
+            help=(
+                "Overwrite existing metadata tags (artist, title, album) if they do not match "
+                "or have low similarity to the filename / Spotify track."
+            ),
         ),
     ] = True,
     overwrite_art: Annotated[
@@ -912,7 +952,7 @@ def import_spotify(
         typer.Option("--recursive/--no-recursive", "-r", help="Recurse into subdirectories."),
     ] = True,
 ) -> None:
-    """Alias for match-spotify: import Spotify CSV/JSON export and fill metadata gaps in audio files."""
+    """Alias for match-spotify: import Spotify export and fill metadata gaps in audio files."""
     match_spotify(
         target=target,
         data_file=data_file,
@@ -937,7 +977,8 @@ def convert(
     output_dir: Annotated[
         Path | None,
         typer.Option(
-            "--output-dir", "-o",
+            "--output-dir",
+            "-o",
             help="Optional destination directory for converted FLACs.",
         ),
     ] = None,
@@ -983,8 +1024,7 @@ def convert(
     else:
         pattern = "**/*" if recursive else "*"
         source_files = [
-            p for p in sorted(target.glob(pattern))
-            if p.is_file() and p.suffix.lower() in wav_exts
+            p for p in sorted(target.glob(pattern)) if p.is_file() and p.suffix.lower() in wav_exts
         ]
 
     if not source_files:
@@ -996,14 +1036,18 @@ def convert(
     settings = get_settings()
 
     async def _run_convert_and_inject() -> None:
-        providers = [
-            MusicBrainzProvider(settings=settings),
-            AppleITunesProvider(settings=settings),
-            DeezerProvider(settings=settings),
-            SpotifyProvider(settings=settings),
-            DiscogsProvider(settings=settings),
-            SonglinkProvider(settings=settings),
-        ] if inject_tags else []
+        providers = (
+            [
+                MusicBrainzProvider(settings=settings),
+                AppleITunesProvider(settings=settings),
+                DeezerProvider(settings=settings),
+                SpotifyProvider(settings=settings),
+                DiscogsProvider(settings=settings),
+                SonglinkProvider(settings=settings),
+            ]
+            if inject_tags
+            else []
+        )
 
         try:
             for src_file in source_files:
@@ -1058,7 +1102,7 @@ def clean_art(
         bool,
         typer.Option(
             "--remove-folder-art",
-            help="Remove loose folder.jpg/cover.jpg images that override track art in media players.",
+            help="Remove loose images (folder.jpg/cover.jpg) that override track art.",
         ),
     ] = False,
     dry_run: Annotated[
@@ -1070,7 +1114,7 @@ def clean_art(
         typer.Option("--recursive/--no-recursive", "-r", help="Recurse into subdirectories."),
     ] = True,
 ) -> None:
-    """Deduplicate embedded picture blocks, purge legacy picture tags, and clean loose folder images."""
+    """Deduplicate picture blocks, purge legacy picture tags, and clean loose folder images."""
     if not target.exists():
         console.print(f"[bold red]Target path does not exist:[/bold red] {target}")
         raise typer.Exit(code=1)
@@ -1081,34 +1125,60 @@ def clean_art(
         directories = [target.parent]
     else:
         glob_pat = "**/*" if recursive else "*"
-        audio_files = [p for p in sorted(target.glob(glob_pat)) if p.is_file() and p.suffix.lower() in audio_exts]
-        directories = [target] if not recursive else [d for d in [target, *target.glob("**/")] if d.is_dir()]
+        audio_files = [
+            p
+            for p in sorted(target.glob(glob_pat))
+            if p.is_file() and p.suffix.lower() in audio_exts
+        ]
+        directories = (
+            [target] if not recursive else [d for d in [target, *target.glob("**/")] if d.is_dir()]
+        )
 
     cleaned_count = 0
     for f in audio_files:
         res = clean_embedded_art(f, dry_run=dry_run)
         if res["modified"]:
             cleaned_count += 1
-            action = "[dim cyan][DRY-RUN] Would clean[/dim cyan]" if dry_run else "[bold green][OK] Cleaned art:[/bold green]"
-            console.print(f"{action} {f.name} ({res['pictures_before']} -> {res['pictures_after']} pic block(s))")
+            action = (
+                "[dim cyan][DRY-RUN] Would clean[/dim cyan]"
+                if dry_run
+                else "[bold green][OK] Cleaned art:[/bold green]"
+            )
+            console.print(
+                f"{action} {f.name} "
+                f"({res['pictures_before']} -> {res['pictures_after']} pic block(s))"
+            )
 
-    console.print(f"[bold]Processed {len(audio_files)} audio file(s): {cleaned_count} had duplicate art cleaned.[/bold]")
+    console.print(
+        f"[bold]Processed {len(audio_files)} audio file(s): "
+        f"{cleaned_count} had duplicate art cleaned.[/bold]"
+    )
 
     # Check for loose folder art
     loose_art_names = {
-        "folder.jpg", "folder.png", "cover.jpg", "cover.png",
-        "albumart.jpg", "albumart.png", "front.jpg", "front.png"
+        "folder.jpg",
+        "folder.png",
+        "cover.jpg",
+        "cover.png",
+        "albumart.jpg",
+        "albumart.png",
+        "front.jpg",
+        "front.png",
     }
     found_loose: list[Path] = []
     for d in directories:
         for item in d.glob("*"):
             if item.is_file():
                 name_lower = item.name.lower()
-                if name_lower in loose_art_names or (name_lower.startswith("albumart_") and name_lower.endswith(".jpg")):
+                if name_lower in loose_art_names or (
+                    name_lower.startswith("albumart_") and name_lower.endswith(".jpg")
+                ):
                     found_loose.append(item)
 
     if found_loose:
-        console.print(f"\n[bold yellow]Found {len(found_loose)} loose folder image(s):[/bold yellow]")
+        console.print(
+            f"\n[bold yellow]Found {len(found_loose)} loose folder image(s):[/bold yellow]"
+        )
         for img in found_loose:
             if remove_folder_art:
                 if dry_run:
@@ -1117,7 +1187,10 @@ def clean_art(
                     img.unlink()
                     console.print(f"[bold red]Removed loose image:[/bold red] {img}")
             else:
-                console.print(f"  [yellow]• {img}[/yellow] (Note: Causes Windows/media players to show the same cover for all files in this folder. Use [bold]--remove-folder-art[/bold] to delete).")
+                console.print(
+                    f"  [yellow]• {img}[/yellow] (Note: Causes media players to show same cover. "
+                    "Use [bold]--remove-folder-art[/bold] to delete)."
+                )
 
 
 if __name__ == "__main__":

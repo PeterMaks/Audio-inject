@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     @classmethod
     def resolve_songlink_key(cls, data: Any) -> Any:
         import os
+
         if isinstance(data, dict):
             if not data.get("SONGLINK_API_KEY") and data.get("ODESLI_API_KEY"):
                 data["SONGLINK_API_KEY"] = data["ODESLI_API_KEY"]

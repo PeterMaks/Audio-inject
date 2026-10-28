@@ -76,7 +76,11 @@ class DiscogsProvider(BaseMetadataProvider):
             for item in items[:2]:
                 release_id = item.get("id")
                 detail = await self._fetch_release_detail(release_id) if release_id else None
-                meta = self._parse_release_detail(detail, query_title="", query_artist=None) if detail else None
+                meta = (
+                    self._parse_release_detail(detail, query_title="", query_artist=None)
+                    if detail
+                    else None
+                )
                 if not meta:
                     meta = self._parse_search_item(item, query_title="", query_artist=None)
                 if meta:
@@ -119,7 +123,9 @@ class DiscogsProvider(BaseMetadataProvider):
                 release_id = item.get("id")
                 detail = await self._fetch_release_detail(release_id) if release_id else None
                 if detail:
-                    meta = self._parse_release_detail(detail, query_title=title, query_artist=artist)
+                    meta = self._parse_release_detail(
+                        detail, query_title=title, query_artist=artist
+                    )
                     if meta:
                         results.append(meta)
                         continue
@@ -185,14 +191,20 @@ class DiscogsProvider(BaseMetadataProvider):
 
         # Track metadata
         track_title = matched_track.get("title") if matched_track else (query_title or album_name)
-        track_pos = str(matched_track.get("position", "")) if matched_track and matched_track.get("position") else None
+        track_pos = (
+            str(matched_track.get("position", ""))
+            if matched_track and matched_track.get("position")
+            else None
+        )
 
         # Track artist if specified individually
         track_artist = primary_artist
         if matched_track and matched_track.get("artists"):
             t_artists = matched_track["artists"]
             if isinstance(t_artists, list) and t_artists and isinstance(t_artists[0], dict):
-                track_artist = self._sanitize_discogs_name(t_artists[0].get("name")) or primary_artist
+                track_artist = (
+                    self._sanitize_discogs_name(t_artists[0].get("name")) or primary_artist
+                )
 
         # Composer / Writer from extraartists
         composer: str | None = None
@@ -206,7 +218,10 @@ class DiscogsProvider(BaseMetadataProvider):
         for ea in extra_artists:
             if isinstance(ea, dict):
                 role = ea.get("role", "").lower()
-                if any(w in role for w in ("written-by", "written by", "composer", "music by", "words by")):
+                if any(
+                    w in role
+                    for w in ("written-by", "written by", "composer", "music by", "words by")
+                ):
                     clean_ea = self._sanitize_discogs_name(ea.get("name"))
                     if clean_ea and clean_ea not in composers_list:
                         composers_list.append(clean_ea)
@@ -215,7 +230,11 @@ class DiscogsProvider(BaseMetadataProvider):
 
         # Date & Year
         date_str = str(detail.get("released") or detail.get("year") or "").strip()
-        year_str = str(detail.get("year", "")) if detail.get("year") else (date_str[:4] if len(date_str) >= 4 and date_str[:4].isdigit() else None)
+        year_str = (
+            str(detail.get("year", ""))
+            if detail.get("year")
+            else (date_str[:4] if len(date_str) >= 4 and date_str[:4].isdigit() else None)
+        )
 
         # Genres and Styles combined
         genres: list[str] = []
@@ -249,7 +268,9 @@ class DiscogsProvider(BaseMetadataProvider):
         cover_h: int | None = None
         images = detail.get("images", [])
         if images and isinstance(images, list):
-            primary_imgs = [img for img in images if isinstance(img, dict) and img.get("type") == "primary"]
+            primary_imgs = [
+                img for img in images if isinstance(img, dict) and img.get("type") == "primary"
+            ]
             chosen = primary_imgs[0] if primary_imgs else images[0]
             if isinstance(chosen, dict):
                 cover_url = chosen.get("uri") or chosen.get("resource_url")

@@ -74,7 +74,7 @@ _SPLIT_ARTISTS_RE = re.compile(
 
 
 def split_artists(raw: str | list[str] | None) -> list[str]:
-    """Split multi-artist strings or lists into distinct individual artists, preserving compound bands."""
+    """Split multi-artist strings/lists into distinct artists, preserving compound bands."""
     if not raw:
         return []
 
@@ -131,8 +131,8 @@ def resolve_album_name(
     total_tracks: int | str | None = None,
 ) -> str:
     """Resolve canonical album name:
-    1. If data provides an album (from CSV, tag, or provider) that is not a placeholder or single marker, use it.
-    2. If it is a single (or album is missing/placeholder/marked 'Single'), label as '{title} - Single'.
+    1. If data provides an album that is not a placeholder or single marker, use it.
+    2. If it is a single (or album is missing/placeholder/marked 'Single'), use '{title} - Single'.
     3. If both fail, label as 'Unknown Album'.
     """
     clean_album = str(album).strip() if album is not None else ""
@@ -167,7 +167,9 @@ def resolve_album_name(
     if single_detected:
         target_name = clean_title if has_valid_title else (clean_album if has_valid_album else "")
         if target_name:
-            if target_name.lower().endswith(" - single") or target_name.lower().endswith(" (single)"):
+            if target_name.lower().endswith(" - single") or target_name.lower().endswith(
+                " (single)"
+            ):
                 return target_name
             return f"{target_name} - Single"
 
@@ -230,7 +232,9 @@ class TrackMetadata(BaseModel):
             self.artists = split_artists(self.artist)
         elif self.artists:
             self.artists = split_artists(self.artists)
-        if self.artists and (not self.artist or self.artist.strip().lower() in PLACEHOLDER_TAG_VALUES):
+        if self.artists and (
+            not self.artist or self.artist.strip().lower() in PLACEHOLDER_TAG_VALUES
+        ):
             self.artist = ", ".join(self.artists)
         return self
 
@@ -407,4 +411,3 @@ class FingerprintResult(BaseModel):
 
     fingerprint: str
     duration: float
-

@@ -64,11 +64,13 @@ def test_env_settings_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert current["CONFIDENCE_THRESHOLD"] == 0.75
     assert "SONGLINK_API_KEY" in current
 
-    updated = save_env_settings({
-        "CONFIDENCE_THRESHOLD": 0.85,
-        "SPOTIFY_CLIENT_ID": "test_id_123",
-        "SONGLINK_API_KEY": "test_songlink_key_456",
-    })
+    updated = save_env_settings(
+        {
+            "CONFIDENCE_THRESHOLD": 0.85,
+            "SPOTIFY_CLIENT_ID": "test_id_123",
+            "SONGLINK_API_KEY": "test_songlink_key_456",
+        }
+    )
     assert updated["CONFIDENCE_THRESHOLD"] == 0.85
     assert updated["SPOTIFY_CLIENT_ID"] == "test_id_123"
     assert updated["SONGLINK_API_KEY"] == "test_songlink_key_456"
@@ -134,4 +136,3 @@ def test_bridge_stdin_execution(tagged_flac: Path):
     assert lines[-1]["type"] == "result"
     assert lines[-1]["action"] == "inspect"
     assert lines[-1]["data"]["filename"] == tagged_flac.name
-

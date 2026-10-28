@@ -23,9 +23,7 @@ class BaseMetadataProvider(ABC):
     ) -> None:
         self.settings = settings or get_settings()
         self.rate_limit_delay = (
-            rate_limit_delay
-            if rate_limit_delay is not None
-            else self.settings.rate_limit_delay
+            rate_limit_delay if rate_limit_delay is not None else self.settings.rate_limit_delay
         )
         self._last_request_time: float = 0.0
         self._lock = asyncio.Lock()

@@ -17,7 +17,7 @@ def score_release(
 
     Bonuses:
       +50: Primary type is Album, status is Official, and release artist matches recording artist.
-      +35: Primary type is Single or EP, status is Official, and release artist matches recording artist.
+      +35: Primary type is Single or EP, Official status, and matches recording artist.
     Penalties:
       -100: Secondary types include Compilation, Soundtrack, DJ-mix, Mixtape/Street,
             OR release artist credit is 'Various Artists'
@@ -25,18 +25,11 @@ def score_release(
     """
     score = 0
     rg = rel.get("releasegroup") or rel.get("release-group") or {}
-    primary_type = str(
-        rel.get("type")
-        or rg.get("type")
-        or rg.get("primary-type")
-        or ""
-    ).strip().lower()
+    primary_type = (
+        str(rel.get("type") or rg.get("type") or rg.get("primary-type") or "").strip().lower()
+    )
 
-    status = str(
-        rel.get("status")
-        or rg.get("status")
-        or "official"
-    ).strip().lower()
+    status = str(rel.get("status") or rg.get("status") or "official").strip().lower()
 
     raw_sec = rel.get("secondarytypes") or rg.get("secondary-types") or []
     sec_types = [str(s).strip().lower() for s in raw_sec]
@@ -60,8 +53,7 @@ def score_release(
         rel_artist_str = str(rel_artists)
 
     is_various_artists = (
-        "various artists" in rel_artist_str.lower()
-        or rel_artist_str.strip().lower() == "various"
+        "various artists" in rel_artist_str.lower() or rel_artist_str.strip().lower() == "various"
     )
 
     compilation_penalties = {"compilation", "soundtrack", "dj-mix", "mixtape/street"}
@@ -70,9 +62,7 @@ def score_release(
         or is_various_artists
     )
 
-    user_is_various = bool(
-        existing_albumartist and "various" in existing_albumartist.lower()
-    )
+    user_is_various = bool(existing_albumartist and "various" in existing_albumartist.lower())
 
     if is_compilation and not user_is_various:
         score -= 100
@@ -153,8 +143,7 @@ class MusicBrainzProvider(BaseMetadataProvider):
                     releases = recording.get("releases", [])
                     if releases:
                         scored_releases = [
-                            (score_release(rel, artist_name), rel)
-                            for rel in releases
+                            (score_release(rel, artist_name), rel) for rel in releases
                         ]
                         scored_releases.sort(key=lambda x: x[0], reverse=True)
 
@@ -172,7 +161,7 @@ class MusicBrainzProvider(BaseMetadataProvider):
                                     track_num = str(tracks[0].get("position", "1"))
                                 track_total = str(mediums[0].get("track_count", ""))
 
-                            # Cover art URL from Cover Art Archive - never inject compilation art into solo tracks
+                            # Cover art URL - never inject compilation art into solo tracks
                             cover_url = (
                                 f"https://coverartarchive.org/release/{album_id}/front-500"
                                 if (album_id and rel_score >= 0)
@@ -229,7 +218,15 @@ class MusicBrainzProvider(BaseMetadataProvider):
                 title = recording.get("title", "")
                 artists = recording.get("artist-credit", [])
                 artist_list = [
-                    (a.get("name") or (a.get("artist", {}).get("name") if isinstance(a.get("artist"), dict) else None) or "").strip()
+                    (
+                        a.get("name")
+                        or (
+                            a.get("artist", {}).get("name")
+                            if isinstance(a.get("artist"), dict)
+                            else None
+                        )
+                        or ""
+                    ).strip()
                     if isinstance(a, dict)
                     else str(a).strip()
                     for a in artists
@@ -254,10 +251,7 @@ class MusicBrainzProvider(BaseMetadataProvider):
                 cover_url = None
 
                 if releases:
-                    scored_releases = [
-                        (score_release(r, artist_name), r)
-                        for r in releases
-                    ]
+                    scored_releases = [(score_release(r, artist_name), r) for r in releases]
                     scored_releases.sort(key=lambda x: x[0], reverse=True)
                     best_score, best_rel = scored_releases[0]
                     album_name = best_rel.get("title", "Unknown Album")
@@ -313,7 +307,15 @@ class MusicBrainzProvider(BaseMetadataProvider):
                 rec_title = rec.get("title", "")
                 credits = rec.get("artist-credit", [])
                 artist_list = [
-                    (c.get("name") or (c.get("artist", {}).get("name") if isinstance(c.get("artist"), dict) else None) or "").strip()
+                    (
+                        c.get("name")
+                        or (
+                            c.get("artist", {}).get("name")
+                            if isinstance(c.get("artist"), dict)
+                            else None
+                        )
+                        or ""
+                    ).strip()
                     if isinstance(c, dict)
                     else str(c).strip()
                     for c in credits
@@ -338,10 +340,7 @@ class MusicBrainzProvider(BaseMetadataProvider):
                 cover_url = None
 
                 if releases:
-                    scored_releases = [
-                        (score_release(r, artist_name), r)
-                        for r in releases
-                    ]
+                    scored_releases = [(score_release(r, artist_name), r) for r in releases]
                     scored_releases.sort(key=lambda x: x[0], reverse=True)
                     best_score, best_rel = scored_releases[0]
                     album_name = best_rel.get("title", "Unknown Album")

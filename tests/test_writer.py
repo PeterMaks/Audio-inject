@@ -79,8 +79,8 @@ def test_inject_preserve_existing(partial_flac: Path) -> None:
 
     audio = FLAC(str(partial_flac))
     assert audio["TITLE"] == ["One More Time"]  # Preserved!
-    assert audio["ARTIST"] == ["Daft Punk"]     # Injected!
-    assert audio["ALBUM"] == ["Discovery"]      # Injected!
+    assert audio["ARTIST"] == ["Daft Punk"]  # Injected!
+    assert audio["ALBUM"] == ["Discovery"]  # Injected!
 
 
 def test_inject_overwrite_existing(partial_flac: Path) -> None:
@@ -145,7 +145,7 @@ def test_inject_deduplicates_tags_and_removes_aliases(untagged_flac: Path) -> No
     assert verified["GENRE"] == ["Electronic", "Dance"]
     assert verified["ALBUMARTIST"] == ["Daft Punk"]
     assert "ALBUM ARTIST" not in verified  # Conflicting legacy alias cleaned
-    assert "TRACK" not in verified         # Conflicting legacy alias cleaned
+    assert "TRACK" not in verified  # Conflicting legacy alias cleaned
 
 
 def test_clean_embedded_art_deduplicates_pictures_and_removes_tags(untagged_flac: Path) -> None:
@@ -211,6 +211,3 @@ def test_inject_multi_artist_flac(untagged_flac: Path) -> None:
     # Verify scanner reads all artists
     scan = inspect_audio(untagged_flac)
     assert scan.existing_tags["ARTIST"] == ["Daft Punk", "Pharrell Williams", "Nile Rodgers"]
-
-
-

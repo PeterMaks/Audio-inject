@@ -101,12 +101,12 @@ export const DropZone: React.FC<DropZoneProps> = ({
   return (
     <motion.div
       animate={{
-        scale: isDragOver ? 1.015 : 1,
+        scale: isDragOver ? 1.01 : 1,
         borderColor: isDragOver
           ? "rgba(10, 132, 255, 0.7)"
-          : "rgba(255, 255, 255, 0.12)",
+          : "rgba(255, 255, 255, 0.08)",
       }}
-      transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+      transition={{ type: "spring", duration: 0.25, bounce: 0 }}
       onDragOver={(e) => {
         e.preventDefault();
         setIsDragOver(true);
@@ -125,7 +125,7 @@ export const DropZone: React.FC<DropZoneProps> = ({
           if (paths.length > 0) onPathsSelected(paths);
         }
       }}
-      className={`relative w-full rounded-[24px] p-10 flex flex-col items-center justify-center text-center glass-panel ${
+      className={`relative w-full rounded-2xl p-8 flex flex-col items-center justify-center text-center glass-panel ${
         isDragOver ? "bg-[#0A84FF]/10" : ""
       }`}
     >
@@ -145,40 +145,42 @@ export const DropZone: React.FC<DropZoneProps> = ({
         className="hidden"
       />
 
-      {/* Concentric Icon Tile: 16px radius inside 24px card */}
-      <div className="w-16 h-16 rounded-[16px] surface-elevated flex items-center justify-center mb-5 shadow-lg">
+      {/* Concentric Icon Tile: Outer rounded-2xl (24px) p-8 (32px), Inner rounded-xl (12px) */}
+      <div className="w-14 h-14 rounded-xl surface-elevated flex items-center justify-center mb-4 shadow-md">
         <UploadCloud
-          className={`w-7 h-7 transition-transform duration-200 ${
-            isDragOver ? "text-[#0A84FF] scale-110" : "text-[#F5F5F7]/85"
+          className={`w-6 h-6 transition-transform duration-150 ${
+            isDragOver ? "text-[#0A84FF] scale-105" : "text-[#F5F5F7]"
           }`}
         />
       </div>
 
       <h3 className="text-base display-heading text-[#F5F5F7]">
-        {isScanning ? "Scanning Audio Masters…" : "Drop Audio Files or Folders"}
+        {isScanning ? "Scanning audio masters…" : "Drop audio files or folders"}
       </h3>
-      <p className="text-xs text-[#86868B] mt-1.5 max-w-[46ch] leading-relaxed">
+      <p className="text-xs text-[#A1A1A6] mt-1 max-w-[44ch] leading-relaxed">
         Drag FLAC, MP3, or uncompressed WAV masters from Explorer to inspect
-        headers, verify acoustic fingerprints, and embed 3000px artwork.
+        headers, verify acoustic fingerprints, and embed artwork.
       </p>
 
-      <div className="flex items-center space-x-3 mt-6">
+      <div className="flex items-center space-x-3 mt-5">
         <button
+          type="button"
           onClick={handleSelectFiles}
           disabled={isScanning}
-          className="apple-btn-secondary flex items-center space-x-2 px-4 py-2.5 rounded-[12px] text-xs font-medium text-[#F5F5F7] disabled:opacity-50 cursor-pointer"
+          className="apple-btn-secondary flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-medium text-[#F5F5F7] disabled:opacity-50 cursor-pointer"
         >
-          <FileAudio className="w-4 h-4 text-[#0A84FF]" />
-          <span>Choose Files…</span>
+          <FileAudio className="w-3.5 h-3.5 text-[#0A84FF]" />
+          <span>Choose files…</span>
         </button>
 
         <button
+          type="button"
           onClick={handleSelectDirectory}
           disabled={isScanning}
-          className="apple-btn-primary flex items-center space-x-2 px-4 py-2.5 rounded-[12px] text-xs font-semibold text-white disabled:opacity-50 cursor-pointer"
+          className="apple-btn-primary flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50 cursor-pointer"
         >
-          <FolderOpen className="w-4 h-4" />
-          <span>Select Library Folder…</span>
+          <FolderOpen className="w-3.5 h-3.5" />
+          <span>Select library folder…</span>
         </button>
       </div>
     </motion.div>

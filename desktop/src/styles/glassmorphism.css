@@ -4,143 +4,150 @@
 
 :root {
   color-scheme: dark;
-  --apple-bg-base: #000000;
-  --apple-surface-primary: rgba(28, 28, 30, 0.72);
-  --apple-surface-secondary: rgba(44, 44, 46, 0.65);
-  --apple-surface-tertiary: rgba(58, 58, 60, 0.55);
-  --apple-text-primary: #f5f5f7;
-  --apple-text-secondary: #86868b;
-  --apple-border-hairline: rgba(255, 255, 255, 0.12);
-  --apple-border-subtle: rgba(255, 255, 255, 0.07);
-  --apple-blue: #0a84ff;
-  --apple-indigo: #5e5ce6;
-  --apple-green: #34c759;
-  --apple-amber: #ff9f0a;
-  --apple-red: #ff453a;
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-out-quart: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-in-out-custom: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* Figma Design System: Two-Layer Semantic Color Tokens */
+  --color-surface-base: #000000;
+  --color-surface-primary: #181818;
+  --color-surface-secondary: #1f1f1f;
+  --color-surface-tertiary: #272727;
+  --color-surface-hover: #313131;
+
+  --color-border-primary: rgba(255, 255, 255, 0.08);
+  --color-border-subtle: rgba(255, 255, 255, 0.05);
+  --color-border-hover: rgba(255, 255, 255, 0.16);
+
+  --color-text-primary: #f5f5f7;
+  --color-text-secondary: #a1a1a6;
+  --color-text-tertiary: #6e6e73;
+
+  --color-action-primary: #0a84ff;
+  --color-action-hover: #0070e0;
+  --color-action-click: #005ec0;
+
+  --color-semantic-success: #34c759;
+  --color-semantic-warning: #ff9f0a;
+  --color-semantic-error: #ff453a;
+
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 body {
-  background-color: rgba(10, 10, 12, 0.78);
-  color: var(--apple-text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
-    "Helvetica Neue", sans-serif;
+  background-color: var(--color-surface-base);
+  color: var(--color-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: -0.01em;
   line-height: 1.45;
   user-select: none;
 }
 
 .display-heading {
   font-weight: 600;
-  letter-spacing: -0.025em;
-  line-height: 1.1;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
 
-/* Layer 1: Primary Frosted Glass Surface (Max 2 blur layers stacked) */
+/* Figma Surface Tokens: Flat, crisp, high-performance */
 .glass-panel {
-  background: var(--apple-surface-primary);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid var(--apple-border-hairline);
-  box-shadow: inset 0 0.5px 0 0 rgba(255, 255, 255, 0.16);
+  background: var(--color-surface-primary);
+  border: 1px solid var(--color-border-primary);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
-/* Layer 2: Elevated Surface inside a Glass Panel (Luminance elevation, no nested blur) */
 .surface-elevated {
-  background: var(--apple-surface-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: inset 0 0.5px 0 0 rgba(255, 255, 255, 0.12);
+  background: var(--color-surface-secondary);
+  border: 1px solid var(--color-border-subtle);
   transition:
-    background-color 180ms var(--ease-out-quart),
-    border-color 180ms var(--ease-out-quart),
-    transform 180ms var(--ease-out-quart);
+    background-color 150ms var(--ease-spring),
+    border-color 150ms var(--ease-spring);
 }
 
-.surface-elevated-interactive:hover {
-  background: var(--apple-surface-tertiary);
-  border-color: rgba(255, 255, 255, 0.18);
+.surface-elevated:hover {
+  border-color: var(--color-border-hover);
 }
 
-/* Concentric Apple Segmented Control */
+/* Apple Segmented Control */
 .apple-segmented {
-  background: rgba(0, 0, 0, 0.42);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 3px;
-  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--color-border-primary);
+  padding: 2px;
+  border-radius: 8px;
 }
 
 .apple-segmented-pill {
-  background: rgba(255, 255, 255, 0.16);
-  border-radius: 8px;
-  box-shadow:
-    0 1px 4px rgba(0, 0, 0, 0.35),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-/* Tactile Buttons with Emil Kowalski 0.97 Press Scale & Strong Ease-Out */
+/* High-Performance Action Buttons with Tactile Feedback */
 .apple-btn-primary {
-  background: linear-gradient(180deg, #1f8fff 0%, #0a84ff 100%);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow:
-    0 2px 10px rgba(10, 132, 255, 0.3),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.32);
+  background: var(--color-action-primary);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.3);
   transition:
-    transform 160ms var(--ease-out-quart),
-    background 160ms var(--ease-out-quart),
-    box-shadow 160ms var(--ease-out-quart),
-    opacity 150ms ease;
+    background-color 140ms var(--ease-spring),
+    box-shadow 140ms var(--ease-spring),
+    transform 120ms var(--ease-spring),
+    opacity 120ms ease;
 }
 
 .apple-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #389bff 0%, #178bff 100%);
-  box-shadow:
-    0 4px 166px rgba(10, 132, 255, 0.42),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.4);
+  background: var(--color-action-hover);
+  box-shadow: 0 4px 12px rgba(10, 132, 255, 0.4);
 }
 
 .apple-btn-primary:active:not(:disabled) {
-  transform: scale(0.97);
+  background: var(--color-action-click);
+  transform: scale(0.98);
+}
+
+.apple-btn-primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-surface-base), 0 0 0 4px var(--color-action-primary);
 }
 
 .apple-btn-secondary {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.14);
+  background: var(--color-surface-tertiary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-primary);
   transition:
-    transform 160ms var(--ease-out-quart),
-    background-color 160ms var(--ease-out-quart),
-    border-color 160ms var(--ease-out-quart),
-    color 160ms var(--ease-out-quart);
+    background-color 140ms var(--ease-spring),
+    border-color 140ms var(--ease-spring),
+    transform 120ms var(--ease-spring);
 }
 
 .apple-btn-secondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.13);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-hover);
 }
 
 .apple-btn-secondary:active:not(:disabled) {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
-/* Apple Music Atmospheric Artwork Mesh */
+.apple-btn-secondary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-surface-base), 0 0 0 4px var(--color-action-primary);
+}
+
+/* Optimized Lightweight Ambient Art Atmosphere */
 .ambient-glow {
   position: fixed;
-  inset: -10%;
+  inset: -5%;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.28;
-  filter: blur(36px) saturate(150%);
-  transform: translateZ(0) scale(1.04);
-  will-change: opacity, transform;
-  transition: opacity 600ms var(--ease-out-quart);
+  opacity: 0.16;
+  filter: blur(48px);
+  transform: translateZ(0);
+  contain: strict;
+  will-change: opacity;
+  transition: opacity 400ms var(--ease-spring);
   background-size: cover;
   background-position: center;
 }
@@ -149,35 +156,33 @@ body {
 input[type="range"].apple-slider {
   -webkit-appearance: none;
   appearance: none;
-  height: 5px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
+  height: 4px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
   outline: none;
 }
 
 input[type="range"].apple-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #f5f5f7;
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.45),
-    0 0 0 0.5px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   cursor: pointer;
-  transition: transform 160ms var(--ease-out-quart);
+  transition: transform 120ms var(--ease-spring);
 }
 
 input[type="range"].apple-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.08);
+  transform: scale(1.1);
 }
 
 input[type="range"].apple-slider::-webkit-slider-thumb:active {
   transform: scale(0.95);
 }
 
-/* Subtle macOS Scrollbars */
+/* Sleek Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -188,15 +193,15 @@ input[type="range"].apple-slider::-webkit-slider-thumb:active {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.14);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.24);
 }
 
-/* Reduced Motion Accessibility Fallback */
+/* Accessibility Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
   *,
   ::before,

@@ -42,18 +42,18 @@ const AppleToggle: React.FC<{
       <div className="text-xs font-medium text-[#F5F5F7] group-hover:text-white">
         {label}
       </div>
-      <div className="text-[11px] text-[#86868B]">{description}</div>
+      <div className="text-xs text-[#A1A1A6] mt-0.5">{description}</div>
     </div>
     <button
       type="button"
       role="switch"
       aria-checked={checked}
-      className={`w-10 h-6 rounded-full p-0.5 transition-colors duration-200 shrink-0 ${
+      className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-150 shrink-0 ${
         checked ? "bg-[#34C759]" : "bg-white/[0.14]"
       }`}
     >
       <div
-        className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform duration-200 ${
+        className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-150 ${
           checked ? "translate-x-4" : "translate-x-0"
         }`}
       />
@@ -130,16 +130,16 @@ export const InjectView: React.FC<InjectViewProps> = ({
 
   return (
     <div className="flex flex-col h-full space-y-4 overflow-y-auto pr-1">
-      {/* 6-Node Continuity Signal Chain (Concentric: Outer 20px p-4, Inner 12px) */}
-      <div className="p-4 rounded-[20px] glass-panel space-y-3.5">
+      {/* 6-Node Continuity Signal Chain: Outer rounded-2xl (16px) p-4 (16px), Inner rounded-lg (8px) */}
+      <div className="p-4 rounded-2xl glass-panel space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-[#F5F5F7]">
-            Resolution Waterfall Signal Chain
+            Resolution waterfall signal chain
           </span>
-          <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-white/[0.06] text-[#86868B] border border-white/[0.08] tabular-nums">
+          <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-white/[0.06] text-[#A1A1A6] border border-white/[0.08] tabular-nums">
             {isInjecting
-              ? `Active Stage: ${currentProgress?.stage || "Resolving"}`
-              : "Idle • 6 Providers Armed"}
+              ? `Active: ${currentProgress?.stage || "Resolving"}`
+              : "Idle • 6 providers armed"}
           </span>
         </div>
 
@@ -152,7 +152,7 @@ export const InjectView: React.FC<InjectViewProps> = ({
             return (
               <div
                 key={node.title}
-                className={`p-3 rounded-[12px] border transition-all duration-200 flex flex-col items-center text-center ${
+                className={`p-3 rounded-lg border transition-colors flex flex-col items-center text-center ${
                   isActive
                     ? "bg-[#0A84FF]/15 border-[#0A84FF]"
                     : isCompleted
@@ -161,20 +161,20 @@ export const InjectView: React.FC<InjectViewProps> = ({
                 }`}
               >
                 <div
-                  className={`w-8 h-8 rounded-[9px] flex items-center justify-center mb-1.5 ${
+                  className={`w-7 h-7 rounded-md flex items-center justify-center mb-1.5 ${
                     isActive
                       ? "bg-[#0A84FF] text-white shadow-sm"
                       : isCompleted
                         ? "bg-[#34C759]/20 text-[#34C759]"
-                        : "bg-white/[0.06] text-[#86868B]"
+                        : "bg-white/[0.06] text-[#A1A1A6]"
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className="w-3.5 h-3.5" />
                 </div>
                 <div className="text-xs font-semibold text-[#F5F5F7]">
                   {node.title}
                 </div>
-                <div className="text-[10px] text-[#86868B] mt-0.5">
+                <div className="text-xs text-[#A1A1A6] mt-0.5">
                   {node.sub}
                 </div>
               </div>
@@ -183,20 +183,20 @@ export const InjectView: React.FC<InjectViewProps> = ({
         </div>
       </div>
 
-      {/* Two-Column Apple Settings Bento */}
+      {/* Two-Column Bento */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Confidence Slider Card */}
-        <div className="p-5 rounded-[20px] glass-panel flex flex-col justify-between space-y-4">
+        <div className="p-4 rounded-2xl glass-panel flex flex-col justify-between space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-xs font-semibold text-[#F5F5F7]">
-                Match Confidence Threshold
+                Match confidence threshold
               </div>
-              <div className="text-[11px] text-[#86868B] mt-0.5">
-                Minimum RapidFuzz & duration similarity required to auto-write
+              <div className="text-xs text-[#A1A1A6] mt-0.5">
+                Minimum RapidFuzz and duration similarity to write
               </div>
             </div>
-            <span className="text-sm font-semibold tabular-nums text-[#0A84FF] bg-[#0A84FF]/15 px-2.5 py-1 rounded-[10px] border border-[#0A84FF]/30">
+            <span className="text-xs font-semibold tabular-nums text-[#0A84FF] bg-[#0A84FF]/15 px-2.5 py-1 rounded-lg border border-[#0A84FF]/30">
               {(threshold * 100).toFixed(0)}%
             </span>
           </div>
@@ -211,40 +211,38 @@ export const InjectView: React.FC<InjectViewProps> = ({
               onChange={(e) => setThreshold(parseFloat(e.target.value))}
               className="w-full apple-slider"
             />
-            <div className="flex justify-between text-[11px] text-[#86868B] tabular-nums">
+            <div className="flex justify-between text-xs text-[#A1A1A6] tabular-nums">
               <span>40% (Permissive)</span>
-              <span className="text-[#F5F5F7]/80 font-medium">
-                70% (Recommended)
-              </span>
+              <span className="text-[#F5F5F7] font-medium">70% (Standard)</span>
               <span>95% (Strict)</span>
             </div>
           </div>
         </div>
 
-        {/* Apple Capsule Switches Card */}
-        <div className="p-5 rounded-[20px] glass-panel divide-y divide-white/[0.06]">
+        {/* Toggle Switches Card */}
+        <div className="p-4 rounded-2xl glass-panel divide-y divide-white/[0.06]">
           <AppleToggle
             checked={onlyIncomplete}
             onChange={setOnlyIncomplete}
-            label="Incomplete Tracks Only"
-            description="Skip tracks already fully tagged with verified 3000px cover art"
+            label="Incomplete tracks only"
+            description="Skip tracks already fully tagged with verified artwork"
           />
           <AppleToggle
             checked={dryRun}
             onChange={setDryRun}
-            label="Dry-Run Simulation"
-            description="Preview resolved Vorbis/ID3 tags without modifying files on disk"
+            label="Dry-run simulation"
+            description="Preview resolved tags without modifying files on disk"
           />
           <AppleToggle
             checked={overwrite}
             onChange={setOverwrite}
-            label="Overwrite Existing Metadata"
-            description="Replace populated tags with fresh canonical provider values"
+            label="Overwrite existing metadata"
+            description="Replace populated tags with canonical provider values"
           />
           <AppleToggle
             checked={convertWav}
             onChange={setConvertWav}
-            label="Auto-Encode WAV Masters"
+            label="Auto-encode WAV masters"
             description="Convert uncompressed WAV tracks to FLAC before tagging"
           />
         </div>
@@ -252,11 +250,10 @@ export const InjectView: React.FC<InjectViewProps> = ({
 
       {/* Live Progress Bar */}
       {isInjecting && (
-        <div className="p-4 rounded-[20px] glass-panel space-y-2.5 border border-[#0A84FF]/40">
+        <div className="p-4 rounded-2xl glass-panel space-y-2 border border-[#0A84FF]/40">
           <div className="flex justify-between text-xs tabular-nums">
             <span className="text-[#F5F5F7] font-medium truncate max-w-lg">
-              {currentProgress?.message ||
-                "Resolving metadata across providers…"}
+              {currentProgress?.message || "Resolving metadata across providers…"}
             </span>
             <span className="text-[#0A84FF] font-semibold">
               {currentProgress?.percent?.toFixed(0) || 0}%
@@ -264,7 +261,7 @@ export const InjectView: React.FC<InjectViewProps> = ({
           </div>
           <div className="w-full h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
             <div
-              className="h-full bg-[#0A84FF] transition-all duration-200 rounded-full"
+              className="h-full bg-[#0A84FF] transition-all duration-150 rounded-full"
               style={{ width: `${currentProgress?.percent || 0}%` }}
             />
           </div>
@@ -272,37 +269,37 @@ export const InjectView: React.FC<InjectViewProps> = ({
       )}
 
       {/* Execution Bar */}
-      <div className="flex items-center justify-between p-4 rounded-[20px] glass-panel">
-        <div className="text-xs text-[#86868B] tabular-nums">
+      <div className="flex items-center justify-between p-4 rounded-2xl glass-panel">
+        <div className="text-xs text-[#A1A1A6] tabular-nums">
           Ready to process{" "}
           <span className="text-[#F5F5F7] font-semibold">
             {targetItems.length}
           </span>{" "}
-          of <span className="text-[#F5F5F7]/85">{items.length}</span> audio
-          track(s)
+          of <span className="text-[#F5F5F7]">{items.length}</span> track(s)
         </div>
 
         <button
+          type="button"
           onClick={handleExecute}
           disabled={isInjecting || targetItems.length === 0}
-          className="apple-btn-primary flex items-center space-x-2 px-6 py-2.5 rounded-[12px] text-white text-xs font-semibold disabled:opacity-40"
+          className="apple-btn-primary flex items-center space-x-2 px-5 py-2 rounded-lg text-white text-xs font-semibold disabled:opacity-40"
         >
           <Sparkles className="w-4 h-4" />
           <span>
             {isInjecting
-              ? "Running Waterfall…"
+              ? "Running waterfall…"
               : dryRun
-                ? `Simulate Injection (${targetItems.length})`
-                : `Inject Metadata (${targetItems.length})`}
+                ? `Simulate injection (${targetItems.length})`
+                : `Inject metadata (${targetItems.length})`}
           </span>
         </button>
       </div>
 
-      {/* Rich Verification & Dry-Run Diff Log */}
+      {/* Verification Log */}
       {lastResults.length > 0 && (
         <div className="space-y-2.5">
-          <h4 className="text-xs font-semibold text-[#86868B] px-1 tabular-nums">
-            Verification Log ({lastResults.length})
+          <h4 className="text-xs font-semibold text-[#A1A1A6] px-1 tabular-nums">
+            Verification log ({lastResults.length})
           </h4>
           <div className="space-y-2">
             {lastResults.map((res, i) => {
@@ -312,7 +309,7 @@ export const InjectView: React.FC<InjectViewProps> = ({
               return (
                 <div
                   key={i}
-                  className="p-3.5 rounded-[16px] glass-panel space-y-2.5 text-xs"
+                  className="p-3.5 rounded-xl glass-panel space-y-2 text-xs"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3 min-w-0">
@@ -325,11 +322,8 @@ export const InjectView: React.FC<InjectViewProps> = ({
                         <div className="font-medium text-[#F5F5F7] truncate">
                           {meta ? `${meta.artist} — ${meta.title}` : res.file}
                         </div>
-                        <div className="text-[11px] text-[#86868B] truncate tabular-nums">
-                          {meta?.album ||
-                            res.reason ||
-                            res.error ||
-                            "Verified"}
+                        <div className="text-xs text-[#A1A1A6] truncate tabular-nums">
+                          {meta?.album || res.reason || res.error || "Verified"}
                           {meta?.isrc ? ` • ISRC: ${meta.isrc}` : ""}
                           {meta?.bpm ? ` • ${meta.bpm} BPM` : ""}
                         </div>
@@ -338,30 +332,29 @@ export const InjectView: React.FC<InjectViewProps> = ({
 
                     <div className="flex items-center space-x-2 shrink-0 tabular-nums">
                       {meta?.source_provider && (
-                        <span className="px-2 py-0.5 rounded-[6px] bg-white/[0.06] text-[#86868B] text-[10px] uppercase font-semibold">
+                        <span className="px-2 py-0.5 rounded-md bg-white/[0.06] text-[#A1A1A6] text-xs uppercase font-semibold">
                           {meta.source_provider}
                         </span>
                       )}
                       {res.confidence_score !== undefined && (
-                        <span className="px-2 py-0.5 rounded-[6px] bg-white/[0.06] text-[#F5F5F7]/85 text-[11px]">
+                        <span className="px-2 py-0.5 rounded-md bg-white/[0.06] text-[#F5F5F7] text-xs">
                           {(res.confidence_score * 100).toFixed(0)}% match
                         </span>
                       )}
                       <span
-                        className={`px-2.5 py-0.5 rounded-full font-medium text-[11px] capitalize ${
+                        className={`px-2.5 py-0.5 rounded-full font-medium text-xs capitalize ${
                           res.status === "injected"
                             ? "bg-[#34C759]/20 text-[#34C759]"
-                            : "bg-white/[0.08] text-[#F5F5F7]/80"
+                            : "bg-white/[0.08] text-[#F5F5F7]"
                         }`}
                       >
                         {res.status.replace("_", " ")}
                       </span>
                       {meta && (
                         <button
-                          onClick={() =>
-                            setExpandedRow(isExpanded ? null : i)
-                          }
-                          className="p-1 rounded-md hover:bg-white/[0.08] text-[#86868B] hover:text-[#F5F5F7]"
+                          type="button"
+                          onClick={() => setExpandedRow(isExpanded ? null : i)}
+                          className="p-1 rounded-md hover:bg-white/[0.08] text-[#A1A1A6] hover:text-[#F5F5F7]"
                           title="Inspect resolved tags"
                         >
                           {isExpanded ? (
@@ -375,26 +368,26 @@ export const InjectView: React.FC<InjectViewProps> = ({
                   </div>
 
                   {isExpanded && meta && (
-                    <div className="pt-2 border-t border-white/[0.07] grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] tabular-nums">
-                      <div className="text-[#86868B]">
+                    <div className="pt-2 border-t border-white/[0.07] grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs tabular-nums">
+                      <div className="text-[#A1A1A6]">
                         Year:{" "}
                         <span className="text-[#F5F5F7]">
                           {meta.year || meta.date || "—"}
                         </span>
                       </div>
-                      <div className="text-[#86868B]">
+                      <div className="text-[#A1A1A6]">
                         Label:{" "}
                         <span className="text-[#F5F5F7]">
                           {meta.label || "—"}
                         </span>
                       </div>
-                      <div className="text-[#86868B]">
+                      <div className="text-[#A1A1A6]">
                         Barcode:{" "}
                         <span className="text-[#F5F5F7] font-mono">
                           {meta.barcode || "—"}
                         </span>
                       </div>
-                      <div className="col-span-full text-[#86868B]">
+                      <div className="col-span-full text-[#A1A1A6]">
                         Genres:{" "}
                         <span className="text-[#F5F5F7]">
                           {meta.genre?.length ? meta.genre.join(", ") : "—"}

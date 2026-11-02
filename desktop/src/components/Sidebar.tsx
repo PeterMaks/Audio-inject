@@ -18,27 +18,27 @@ interface SidebarProps {
   wavCount: number;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({
+export const Sidebar: React.FC<SidebarProps> = React.memo(function Sidebar({
   activeTab,
   onTabChange,
   scannedCount,
   incompleteCount,
   wavCount,
-}) => {
+}) {
   const sections = [
     {
       heading: "Library",
       items: [
         {
           id: "scan" as ActiveTab,
-          label: "All Tracks",
+          label: "All tracks",
           icon: FolderSearch,
           badge: scannedCount > 0 ? `${scannedCount}` : undefined,
           badgeTone: "neutral",
         },
         {
           id: "inspect" as ActiveTab,
-          label: "Track Inspector",
+          label: "Track inspector",
           icon: FileAudio,
         },
       ],
@@ -48,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         {
           id: "inject" as ActiveTab,
-          label: "Waterfall Injector",
+          label: "Waterfall injector",
           icon: Sparkles,
           badge: incompleteCount > 0 ? `${incompleteCount}` : undefined,
           badgeTone: "accent",
@@ -67,7 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         {
           id: "settings" as ActiveTab,
-          label: "Engine & API Keys",
+          label: "Settings",
           icon: Settings,
         },
       ],
@@ -75,11 +75,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="w-60 flex flex-col justify-between border-r border-white/[0.08] bg-[#141416]/65 backdrop-blur-xl px-3 py-4 select-none shrink-0 z-40">
-      <div className="space-y-6">
+    <aside className="w-56 flex flex-col justify-between border-r border-white/[0.08] bg-[#181818] px-3 py-4 select-none shrink-0 z-40">
+      <div className="space-y-5">
         {sections.map((section) => (
           <div key={section.heading} className="space-y-1">
-            <div className="px-3 pb-1 text-[11px] font-semibold tracking-wider text-[#86868B] uppercase">
+            <div className="px-2.5 pb-1 text-xs font-semibold tracking-wider text-[#6E6E73] uppercase">
               {section.heading}
             </div>
             {section.items.map((item) => {
@@ -88,11 +88,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               return (
                 <button
                   key={item.id}
+                  type="button"
                   onClick={() => onTabChange(item.id)}
-                  className={`relative w-full flex items-center justify-between px-3 py-2 rounded-[10px] text-[13px] font-medium transition-colors duration-150 active:scale-[0.98] ${
+                  className={`relative w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                     isActive
-                      ? "text-[#F5F5F7]"
-                      : "text-[#86868B] hover:text-[#F5F5F7]"
+                      ? "text-[#FFFFFF]"
+                      : "text-[#A1A1A6] hover:text-[#F5F5F7]"
                   }`}
                 >
                   {isActive && (
@@ -100,30 +101,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       layoutId="sidebar-active-pill"
                       transition={{
                         type: "spring",
-                        duration: 0.3,
+                        duration: 0.24,
                         bounce: 0,
                       }}
-                      className="absolute inset-0 rounded-[10px] bg-white/[0.11] border border-white/[0.08] shadow-sm"
+                      className="absolute inset-0 rounded-lg bg-white/[0.1] border border-white/[0.08] shadow-sm"
                     />
                   )}
 
-                  <div className="relative z-10 flex items-center space-x-2.5">
+                  <div className="relative z-10 flex items-center space-x-2.5 truncate">
                     <Icon
-                      className={`w-4 h-4 transition-colors duration-150 ${
-                        isActive ? "text-[#0A84FF]" : "text-[#86868B]"
+                      className={`w-4 h-4 shrink-0 transition-colors ${
+                        isActive ? "text-[#0A84FF]" : "text-[#A1A1A6]"
                       }`}
                     />
-                    <span>{item.label}</span>
+                    <span className="truncate">{item.label}</span>
                   </div>
 
                   {item.badge && (
                     <span
-                      className={`relative z-10 px-2 py-0.5 rounded-full text-[11px] tabular-nums font-semibold ${
+                      className={`relative z-10 px-2 py-0.5 rounded-full text-xs tabular-nums font-semibold shrink-0 ml-1.5 ${
                         item.badgeTone === "accent"
                           ? "bg-[#FF453A]/20 text-[#FF6961]"
                           : item.badgeTone === "amber"
                             ? "bg-[#FF9F0A]/20 text-[#FF9F0A]"
-                            : "bg-white/[0.08] text-[#F5F5F7]/80"
+                            : "bg-white/[0.08] text-[#F5F5F7]"
                       }`}
                     >
                       {item.badge}
@@ -136,19 +137,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ))}
       </div>
 
-      {/* Concentric Spec Card: Outer rounded-[16px] p-3, Inner Spec Rows */}
-      <div className="p-3 rounded-[16px] surface-elevated space-y-1.5">
-        <div className="flex items-center justify-between text-[11px]">
-          <span className="text-[#86868B]">Audio Engine</span>
-          <span className="text-[#F5F5F7]/90 font-medium">Bit-Perfect PCM</span>
+      {/* Concentric Engine Specs Card: Outer rounded-xl (12px), p-3 (12px) */}
+      <div className="p-3 rounded-xl surface-elevated space-y-1.5">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-[#A1A1A6]">Audio engine</span>
+          <span className="text-[#F5F5F7] font-medium">Bit-perfect PCM</span>
         </div>
-        <div className="flex items-center justify-between text-[11px]">
-          <span className="text-[#86868B]">Artwork CDN</span>
-          <span className="text-[#F5F5F7]/90 font-medium tabular-nums">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-[#A1A1A6]">Artwork master</span>
+          <span className="text-[#F5F5F7] font-medium tabular-nums">
             3000 × 3000 px
           </span>
         </div>
       </div>
     </aside>
   );
-};
+});

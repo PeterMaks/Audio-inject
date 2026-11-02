@@ -48,39 +48,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
   };
 
   return (
-    <div className="flex flex-col h-full space-y-5 overflow-y-auto pr-1 max-w-3xl">
+    <div className="flex flex-col h-full space-y-4 overflow-y-auto pr-1 max-w-2xl">
       {/* Credentials Group */}
-      <div className="p-5 rounded-[20px] glass-panel space-y-4">
-        <div className="flex items-center justify-between border-b border-white/[0.07] pb-3">
+      <div className="p-4 rounded-2xl glass-panel space-y-3">
+        <div className="flex items-center justify-between border-b border-white/[0.08] pb-2.5">
           <div className="flex items-center space-x-2">
             <Key className="w-4 h-4 text-[#0A84FF]" />
             <h4 className="text-xs font-semibold text-[#F5F5F7]">
-              Streaming & Acoustic API Credentials
+              Streaming and acoustic API credentials
             </h4>
           </div>
           <button
             type="button"
             onClick={() => setShowSecrets(!showSecrets)}
-            className="flex items-center space-x-1 text-[11px] text-[#86868B] hover:text-[#F5F5F7]"
+            className="flex items-center space-x-1 text-xs text-[#A1A1A6] hover:text-[#F5F5F7]"
           >
             {showSecrets ? (
               <>
                 <EyeOff className="w-3.5 h-3.5" />
-                <span>Hide Keys</span>
+                <span>Hide keys</span>
               </>
             ) : (
               <>
                 <Eye className="w-3.5 h-3.5" />
-                <span>Show Keys</span>
+                <span>Show keys</span>
               </>
             )}
           </button>
         </div>
 
-        <div className="space-y-3 text-xs">
-          <div className="grid grid-cols-3 items-center gap-4">
-            <label className="text-[#86868B] font-medium">
-              AcoustID API Key
+        <div className="space-y-2.5 text-xs">
+          <div className="grid grid-cols-3 items-center gap-3">
+            <label className="text-[#A1A1A6] font-medium text-xs">
+              AcoustID API key
             </label>
             <input
               type={showSecrets ? "text" : "password"}
@@ -89,28 +89,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
               onChange={(e) =>
                 setSettings({ ...settings, ACOUSTID_API_KEY: e.target.value })
               }
-              className="col-span-2 px-3 py-2 rounded-[12px] bg-black/35 border border-white/[0.1] text-[#F5F5F7] font-mono text-[11px] focus:outline-none focus:border-[#0A84FF]"
+              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] font-mono text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
             />
           </div>
 
-          <div className="grid grid-cols-3 items-center gap-4">
-            <label className="text-[#86868B] font-medium">
-              Spotify Client ID
+          <div className="grid grid-cols-3 items-center gap-3">
+            <label className="text-[#A1A1A6] font-medium text-xs">
+              Spotify client ID
             </label>
             <input
               type="text"
-              placeholder="Optional — falls back to Apple iTunes & Deezer"
+              placeholder="Optional — falls back to Apple Music and Deezer"
               value={settings.SPOTIFY_CLIENT_ID}
               onChange={(e) =>
                 setSettings({ ...settings, SPOTIFY_CLIENT_ID: e.target.value })
               }
-              className="col-span-2 px-3 py-2 rounded-[12px] bg-black/35 border border-white/[0.1] text-[#F5F5F7] font-mono text-[11px] focus:outline-none focus:border-[#0A84FF]"
+              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] font-mono text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
             />
           </div>
 
-          <div className="grid grid-cols-3 items-center gap-4">
-            <label className="text-[#86868B] font-medium">
-              Spotify Client Secret
+          <div className="grid grid-cols-3 items-center gap-3">
+            <label className="text-[#A1A1A6] font-medium text-xs">
+              Spotify client secret
             </label>
             <input
               type={showSecrets ? "text" : "password"}
@@ -122,17 +122,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
                   SPOTIFY_CLIENT_SECRET: e.target.value,
                 })
               }
-              className="col-span-2 px-3 py-2 rounded-[12px] bg-black/35 border border-white/[0.1] text-[#F5F5F7] font-mono text-[11px] focus:outline-none focus:border-[#0A84FF]"
+              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] font-mono text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
             />
           </div>
 
-          <div className="grid grid-cols-3 items-center gap-4">
-            <label className="text-[#86868B] font-medium">
-              Discogs Personal Token
+          <div className="grid grid-cols-3 items-center gap-3">
+            <label className="text-[#A1A1A6] font-medium text-xs">
+              Discogs token
             </label>
             <input
               type={showSecrets ? "text" : "password"}
-              placeholder="Optional Discogs token for vinyl/catalog releases"
+              placeholder="Optional Discogs personal token"
               value={settings.DISCOGS_TOKEN || ""}
               onChange={(e) =>
                 setSettings({
@@ -140,17 +140,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
                   DISCOGS_TOKEN: e.target.value,
                 })
               }
-              className="col-span-2 px-3 py-2 rounded-[12px] bg-black/35 border border-white/[0.1] text-[#F5F5F7] font-mono text-[11px] focus:outline-none focus:border-[#0A84FF]"
+              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] font-mono text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
             />
           </div>
 
-          <div className="grid grid-cols-3 items-center gap-4">
-            <label className="text-[#86868B] font-medium">
-              Songlink / Odesli API Key
+          <div className="grid grid-cols-3 items-center gap-3">
+            <label className="text-[#A1A1A6] font-medium text-xs">
+              Songlink API key
             </label>
             <input
               type={showSecrets ? "text" : "password"}
-              placeholder="Optional Songlink API key"
+              placeholder="Optional Songlink / Odesli API key"
               value={settings.SONGLINK_API_KEY || ""}
               onChange={(e) =>
                 setSettings({
@@ -158,24 +158,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
                   SONGLINK_API_KEY: e.target.value,
                 })
               }
-              className="col-span-2 px-3 py-2 rounded-[12px] bg-black/35 border border-white/[0.1] text-[#F5F5F7] font-mono text-[11px] focus:outline-none focus:border-[#0A84FF]"
+              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] font-mono text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
             />
           </div>
         </div>
       </div>
 
       {/* Engine Parameters Group */}
-      <div className="p-5 rounded-[20px] glass-panel space-y-4">
-        <div className="flex items-center space-x-2 border-b border-white/[0.07] pb-3">
+      <div className="p-4 rounded-2xl glass-panel space-y-3">
+        <div className="flex items-center space-x-2 border-b border-white/[0.08] pb-2.5">
           <Sliders className="w-4 h-4 text-[#0A84FF]" />
           <h4 className="text-xs font-semibold text-[#F5F5F7]">
-            Engine & Network Parameters
+            Engine and network parameters
           </h4>
         </div>
 
-        <div className="space-y-3 text-xs tabular-nums">
-          <div className="grid grid-cols-3 items-center gap-4">
-            <label className="text-[#86868B] font-medium">
+        <div className="space-y-2.5 text-xs tabular-nums">
+          <div className="grid grid-cols-3 items-center gap-3">
+            <label className="text-[#A1A1A6] font-medium text-xs">
               MusicBrainz User-Agent
             </label>
             <input
@@ -187,13 +187,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
                   MUSICBRAINZ_USER_AGENT: e.target.value,
                 })
               }
-              className="col-span-2 px-3 py-2 rounded-[12px] bg-black/35 border border-white/[0.1] text-[#F5F5F7] font-mono text-[11px] focus:outline-none focus:border-[#0A84FF]"
+              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] font-mono text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
             />
           </div>
 
-          <div className="grid grid-cols-3 items-center gap-4">
-            <label className="text-[#86868B] font-medium">
-              Chromaprint Binary (`fpcalc`)
+          <div className="grid grid-cols-3 items-center gap-3">
+            <label className="text-[#A1A1A6] font-medium text-xs">
+              Chromaprint binary (`fpcalc`)
             </label>
             <input
               type="text"
@@ -201,13 +201,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
               onChange={(e) =>
                 setSettings({ ...settings, FPCALC_PATH: e.target.value })
               }
-              className="col-span-2 px-3 py-2 rounded-[12px] bg-black/35 border border-white/[0.1] text-[#F5F5F7] font-mono text-[11px] focus:outline-none focus:border-[#0A84FF]"
+              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] font-mono text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
             />
           </div>
 
-          <div className="grid grid-cols-3 items-center gap-4">
-            <label className="text-[#86868B] font-medium">
-              Minimum Artwork Size (px)
+          <div className="grid grid-cols-3 items-center gap-3">
+            <label className="text-[#A1A1A6] font-medium text-xs">
+              Minimum artwork size (px)
             </label>
             <input
               type="number"
@@ -219,13 +219,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
                   COVER_ART_MIN_RESOLUTION: parseInt(e.target.value, 10) || 600,
                 })
               }
-              className="col-span-2 px-3 py-2 rounded-[12px] bg-black/35 border border-white/[0.1] text-[#F5F5F7] tabular-nums text-xs focus:outline-none focus:border-[#0A84FF]"
+              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] tabular-nums text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
             />
           </div>
 
-          <div className="grid grid-cols-3 items-center gap-4">
-            <label className="text-[#86868B] font-medium">
-              Default Confidence (0.4 – 0.95)
+          <div className="grid grid-cols-3 items-center gap-3">
+            <label className="text-[#A1A1A6] font-medium text-xs">
+              Default confidence (0.4 – 0.95)
             </label>
             <input
               type="number"
@@ -239,13 +239,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
                   CONFIDENCE_THRESHOLD: parseFloat(e.target.value) || 0.7,
                 })
               }
-              className="col-span-2 px-3 py-2 rounded-[12px] bg-black/35 border border-white/[0.1] text-[#F5F5F7] tabular-nums text-xs focus:outline-none focus:border-[#0A84FF]"
+              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] tabular-nums text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
             />
           </div>
 
-          <div className="grid grid-cols-3 items-center gap-4">
-            <label className="text-[#86868B] font-medium">
-              Rate Limit Delay (sec) / Timeout (sec)
+          <div className="grid grid-cols-3 items-center gap-3">
+            <label className="text-[#A1A1A6] font-medium text-xs">
+              Rate limit / timeout (sec)
             </label>
             <div className="col-span-2 grid grid-cols-2 gap-3">
               <input
@@ -259,7 +259,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
                     RATE_LIMIT_DELAY: parseFloat(e.target.value) || 1.0,
                   })
                 }
-                className="px-3 py-2 rounded-[12px] bg-black/35 border border-white/[0.1] text-[#F5F5F7] tabular-nums text-xs focus:outline-none focus:border-[#0A84FF]"
+                className="px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] tabular-nums text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
               />
               <input
                 type="number"
@@ -272,7 +272,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
                     REQUEST_TIMEOUT: parseFloat(e.target.value) || 15.0,
                   })
                 }
-                className="px-3 py-2 rounded-[12px] bg-black/35 border border-white/[0.1] text-[#F5F5F7] tabular-nums text-xs focus:outline-none focus:border-[#0A84FF]"
+                className="px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] tabular-nums text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
               />
             </div>
           </div>
@@ -282,12 +282,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
       {/* Save Action */}
       <div className="flex justify-end">
         <button
+          type="button"
           onClick={handleSave}
           disabled={loading}
-          className="apple-btn-primary flex items-center space-x-2 px-6 py-2.5 rounded-[12px] text-white text-xs font-semibold"
+          className="apple-btn-primary flex items-center space-x-2 px-5 py-2 rounded-lg text-white text-xs font-semibold"
         >
-          <Save className="w-4 h-4" />
-          <span>Save Settings</span>
+          <Save className="w-3.5 h-3.5" />
+          <span>Save settings</span>
         </button>
       </div>
     </div>

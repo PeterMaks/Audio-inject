@@ -424,17 +424,17 @@ flac-meta-injector fingerprint ./music/"01 - Daft Punk - One More Time.mp3"
 
 ---
 
-## Native Windows Glassmorphism Desktop Application (Tauri v2 + React 19)
+## Native Windows  Desktop Application (Tauri v2 + React 19)
 
-`flac-meta-injector` features a native, frameless **Windows 11 Glassmorphism Desktop Application** built with **Tauri v2 (Rust + WebView2)** and **React 19 + TypeScript + Tailwind CSS**.
+`flac-meta-injector` features a native, frameless **Windows 11 Desktop Application** built with **Tauri v2 (Rust + WebView2)** and **React 19 + TypeScript + Tailwind CSS**.
 
 ```
 +-----------------------------------------------------------------------------------+
-|                  TAURI v2 NATIVE WINDOWS SHELL (Frameless + Acrylic)              |
+|                  TAURI v2 NATIVE WINDOWS SHELL            |
 |  +-----------------------------------------------------------------------------+  |
-|  | Custom Glass Titlebar (Minimize / Maximize / Close + Binary Health Badges)  |  |
+|  | Custom  Titlebar (Minimize / Maximize / Close + Binary Health Badges)  |  |
 |  +----------------------+------------------------------------------------------+  |
-|  | Glass Sidebar Nav    | Main Glass Workspace (React 19 + TypeScript)         |  |
+|  | Sidebar Nav    | Main  Workspace (React 19 + TypeScript)         |  |
 |  | - Library Scanner    | - OS Native Drag-and-Drop (Real Windows File Paths)  |  |
 |  | - Waterfall Injector | - Live Provider Waterfall Stepper & Confidence Gauge |  |
 |  | - Track Inspector    | - Before/After Vorbis & ID3v2.4 Diff Table           |  |
@@ -446,7 +446,7 @@ flac-meta-injector fingerprint ./music/"01 - Daft Punk - One More Time.mp3"
                                           v
 +-----------------------------------------------------------------------------------+
 |                     RUST CORE (src-tauri / window-vibrancy)                       |
-| - Applies Windows 11 DWM Acrylic / Mica blur directly to HWND                     |
+|                    
 | - Spawns & manages Python JSON-RPC / CLI Bridge (`python -m flac_injector.bridge`)|
 | - Streams line-delimited JSON progress events to the frontend in real time        |
 +-----------------------------------------+-----------------------------------------+
@@ -462,8 +462,6 @@ flac-meta-injector fingerprint ./music/"01 - Daft Punk - One More Time.mp3"
 
 ### Key Desktop Features
 
-- **Genuine OS Acrylic / Mica Vibrancy**: Renders true Windows 11 DWM frosted transparency via `window-vibrancy`.
-- **Dynamic Ambient Cover Art Glow**: Projects a blurred radial glow of the 3000x3000px album artwork behind the frosted glass cards.
 - **Native OS Drag-and-Drop**: Drop files or folders directly from Windows Explorer into the UI.
 - **Live 5-Node Waterfall Stepper**: Real-time visual progress as tracks move through `Chromaprint` -> `MusicBrainz` -> `iTunes 3000px` -> `Deezer BPM` -> `Spotify`.
 - **Track Inspector & 3000px Zoom**: Inspect Vorbis comments, ID3 frames, and zoom master album artwork in an audiophile modal.

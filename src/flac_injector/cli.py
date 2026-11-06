@@ -44,6 +44,7 @@ app = typer.Typer(
     name="flac-meta-injector",
     help="Production-grade audio metadata & cover art injector (FLAC & MP3) and WAV converter.",
     add_completion=False,
+    context_settings={"help_option_names": ["-h", "--help"]},
 )
 console = Console()
 

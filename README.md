@@ -164,6 +164,9 @@ The command-line interface is available via `flac-meta-injector` or `python -m f
 ```text
 Usage: flac-meta-injector [OPTIONS] COMMAND [ARGS]...
 
+Options:
+  -h, --help   Show help message with all available commands and exit.
+
 Commands:
   scan         Scan audio files (FLAC, MP3, WAV) and report metadata and cover art completeness.
   inspect      Inspect detailed tags, properties, and cover art blocks of an audio file.

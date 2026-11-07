@@ -427,40 +427,46 @@ flac-meta-injector fingerprint ./music/"01 - Daft Punk - One More Time.mp3"
 
 ---
 
-## Native Windows  Desktop Application (Tauri v2 + React 19)
+## Native Windows Desktop Application (Tauri v2 + React 19)
 
 `flac-meta-injector` features a native, frameless **Windows 11 Desktop Application** built with **Tauri v2 (Rust + WebView2)** and **React 19 + TypeScript + Tailwind CSS**.
 
-```
-+-----------------------------------------------------------------------------------+
-|                  TAURI v2 NATIVE WINDOWS SHELL            |
-|  +-----------------------------------------------------------------------------+  |
-|  | Custom  Titlebar (Minimize / Maximize / Close + Binary Health Badges)  |  |
-|  +----------------------+------------------------------------------------------+  |
-|  | Sidebar Nav    | Main  Workspace (React 19 + TypeScript)         |  |
-|  | - Library Scanner    | - OS Native Drag-and-Drop (Real Windows File Paths)  |  |
-|  | - Waterfall Injector | - Live Provider Waterfall Stepper & Confidence Gauge |  |
-|  | - Track Inspector    | - Before/After Vorbis & ID3v2.4 Diff Table           |  |
-|  | - WAV -> FLAC Studio | - 3000x3000px Master Artwork Preview & Ambient Glow  |  |
-|  | - API & Env Settings | - Real-Time Batch Progress Bar & Verification Log    |  |
-|  +----------------------+------------------------------------------------------+  |
-+-----------------------------------------+-----------------------------------------+
-                                          | Tauri IPC Commands & Event Stream
-                                          v
-+-----------------------------------------------------------------------------------+
-|                     RUST CORE (src-tauri / window-vibrancy)                       |
-|                    
-| - Spawns & manages Python JSON-RPC / CLI Bridge (`python -m flac_injector.bridge`)|
-| - Streams line-delimited JSON progress events to the frontend in real time        |
-+-----------------------------------------+-----------------------------------------+
-                                          | stdin / stdout JSON-Lines Protocol
-                                          v
-+-----------------------------------------------------------------------------------+
-|               EXISTING PYTHON ENGINE (`src/flac_injector/`)                       |
-| - Scanner (FLAC/MP3/WAV) | Converter (FFmpeg) | Fingerprint (`fpcalc`/AcoustID)   |
-| - Waterfall Providers (MusicBrainz, iTunes 3000px, Deezer BPM, Spotify)           |
-| - Fuzzy Scorer (RapidFuzz) | Lossless Writer (`mutagen.flac` & `mutagen.mp3`)     |
-+-----------------------------------------------------------------------------------+
+<p align="center">
+  <img src="images/Lib.png" alt="Desktop Library Scanner with Populated Fields" width="100%" />
+</p>
+
+### Desktop Feature Gallery
+
+| **Waterfall Injector** | **Track Inspector** |
+|:---:|:---:|
+| <img src="images/Injector.png" alt="Waterfall Injector" width="100%"/> | <img src="images/Inspector.png" alt="Track Inspector" width="100%"/> |
+| *6-provider resolution waterfall with confidence scoring and batch execution.* | *Vorbis comments, ID3v2.4 frames, and Chromaprint acoustic fingerprint inspection.* |
+| **WAV to FLAC Studio** | **Settings & API Configuration** |
+| <img src="images/Converter.png" alt="WAV to FLAC Studio" width="100%"/> | <img src="images/Settings.png" alt="Settings & API Configuration" width="100%"/> |
+| *Bit-perfect FFmpeg conversion with compression levels (0–12) and auto-tagging.* | *Acoustic API keys, streaming provider credentials, and network parameter tuning.* |
+
+### Desktop IPC Architecture
+
+```mermaid
+graph TD
+    subgraph DesktopApp["Native Desktop Shell (Tauri v2)"]
+        UI["React 19 + TypeScript Frontend<br/>(Library, Injector, Inspector, Studio)"]
+        IPC["Rust Core (src-tauri / window-vibrancy)<br/>Process management & window effects"]
+        UI <-->|Tauri IPC Commands & Event Stream| IPC
+    end
+
+    subgraph PythonEngine["Python Engine"]
+        Bridge["flac_injector.bridge<br/>(JSON-RPC / NDJSON stdio)"]
+        Scanner["Scanner & Merger"]
+        Providers["Waterfall Providers<br/>(MusicBrainz, Apple, Deezer, Spotify)"]
+        Converter["Converter (FFmpeg) & Writer (mutagen)"]
+
+        Bridge --> Scanner
+        Bridge --> Providers
+        Bridge --> Converter
+    end
+
+    IPC <-->|Line-delimited JSON-RPC| Bridge
 ```
 
 ### Key Desktop Features

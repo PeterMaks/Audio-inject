@@ -80,9 +80,22 @@ def bootstrap_bundled_binaries() -> None:
 
 bootstrap_bundled_binaries()
 
+_EVENT_HOOK: Any = None
+
+
+def set_event_hook(hook: Any) -> None:
+    """Set an optional external hook (e.g. WebSocket dispatcher) for emitted events."""
+    global _EVENT_HOOK
+    _EVENT_HOOK = hook
+
 
 def emit_event(event: dict[str, Any]) -> None:
     """Print a single newline-delimited JSON object to stdout and flush."""
+    if _EVENT_HOOK is not None:
+        try:
+            _EVENT_HOOK(event)
+        except Exception:
+            pass
     try:
         line = json.dumps(event, ensure_ascii=False)
         sys.stdout.write(line + "\n")

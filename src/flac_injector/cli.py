@@ -1194,5 +1194,28 @@ def clean_art(
                 )
 
 
+@app.command()
+def serve(
+    host: Annotated[
+        str,
+        typer.Option("--host", "-h", help="WebSocket server bind host"),
+    ] = "127.0.0.1",
+    port: Annotated[
+        int,
+        typer.Option("--port", "-p", help="WebSocket server bind port"),
+    ] = 8765,
+) -> None:
+    """Launch the WebSocket JSON-RPC server for web frontend clients."""
+    import asyncio
+
+    from flac_injector.server import start_server
+
+    console.print(f"[bold green]Starting WebSocket server on ws://{host}:{port}[/bold green]")
+    try:
+        asyncio.run(start_server(host=host, port=port))
+    except KeyboardInterrupt:
+        console.print("[dim]Server stopped.[/dim]")
+
+
 if __name__ == "__main__":
     app()

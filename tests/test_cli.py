@@ -1,5 +1,8 @@
 """Unit tests for the CLI help flags and command listing."""
 
+import re
+from pathlib import Path
+
 from typer.testing import CliRunner
 
 from flac_injector.cli import app
@@ -43,13 +46,17 @@ def test_cli_subcommand_help_short_flag():
     assert "--recursive" in result.output or "-r" in result.output
 
 
-def test_cli_inject_no_overwrite_flag():
+def test_cli_inject_no_overwrite_flag(tagged_flac: Path):
     """Verify that inject accepts --no-overwrite without a parsing error."""
     runner = CliRunner()
     result = runner.invoke(app, ["inject", "--help"])
     assert result.exit_code == 0
-    assert "--overwrite" in result.output
-    assert "--no-overwrite" in result.output
+    clean_output = re.sub(r"\x1b\[[0-9;]*[mK]", "", result.output)
+    assert "--overwrite" in clean_output
+    assert "--no-overwrite" in clean_output
+
+    exec_result = runner.invoke(app, ["inject", str(tagged_flac), "--no-overwrite", "--dry-run"])
+    assert exec_result.exit_code == 0
 
 
 def test_public_package_exports():

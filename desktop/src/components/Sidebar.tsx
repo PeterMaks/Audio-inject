@@ -75,11 +75,11 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(function Sidebar({
   ];
 
   return (
-    <aside className="w-56 flex flex-col justify-between border-r border-white/[0.08] bg-[#181818] px-3 py-4 select-none shrink-0 z-40">
+    <aside className="w-58 flex flex-col justify-between border-r border-white/[0.08] bg-[#161618]/85 backdrop-blur-2xl px-3 py-4 select-none shrink-0 z-40">
       <div className="space-y-5">
         {sections.map((section) => (
           <div key={section.heading} className="space-y-1">
-            <div className="px-2.5 pb-1 text-xs font-semibold tracking-wider text-[#6E6E73] uppercase">
+            <div className="px-2.5 pb-1 text-[11px] font-semibold tracking-wider text-[#8E8E93] uppercase">
               {section.heading}
             </div>
             {section.items.map((item) => {
@@ -90,10 +90,10 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(function Sidebar({
                   key={item.id}
                   type="button"
                   onClick={() => onTabChange(item.id)}
-                  className={`relative w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={`relative w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     isActive
                       ? "text-[#FFFFFF]"
-                      : "text-[#A1A1A6] hover:text-[#F5F5F7]"
+                      : "text-[#8E8E93] hover:text-[#FFFFFF]"
                   }`}
                 >
                   {isActive && (
@@ -104,14 +104,14 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(function Sidebar({
                         duration: 0.24,
                         bounce: 0,
                       }}
-                      className="absolute inset-0 rounded-lg bg-white/[0.1] border border-white/[0.08] shadow-sm"
+                      className="absolute inset-0 rounded-lg bg-white/[0.12] border border-white/[0.08] shadow-sm"
                     />
                   )}
 
                   <div className="relative z-10 flex items-center space-x-2.5 truncate">
                     <Icon
                       className={`w-4 h-4 shrink-0 transition-colors ${
-                        isActive ? "text-[#0A84FF]" : "text-[#A1A1A6]"
+                        isActive ? "text-[#007AFF]" : "text-[#8E8E93]"
                       }`}
                     />
                     <span className="truncate">{item.label}</span>
@@ -119,12 +119,12 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(function Sidebar({
 
                   {item.badge && (
                     <span
-                      className={`relative z-10 px-2 py-0.5 rounded-full text-xs tabular-nums font-semibold shrink-0 ml-1.5 ${
+                      className={`relative z-10 px-2 py-0.5 rounded-full text-[11px] tabular-nums font-semibold shrink-0 ml-1.5 ${
                         item.badgeTone === "accent"
-                          ? "bg-[#FF453A]/20 text-[#FF6961]"
+                          ? "bg-[#FF3B30]/20 text-[#FF6961] border border-[#FF3B30]/30"
                           : item.badgeTone === "amber"
-                            ? "bg-[#FF9F0A]/20 text-[#FF9F0A]"
-                            : "bg-white/[0.08] text-[#F5F5F7]"
+                            ? "bg-[#FF9500]/20 text-[#FF9500] border border-[#FF9500]/30"
+                            : "bg-white/[0.08] text-[#FFFFFF] border border-white/[0.08]"
                       }`}
                     >
                       {item.badge}
@@ -137,15 +137,15 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(function Sidebar({
         ))}
       </div>
 
-      {/* Concentric Engine Specs Card: Outer rounded-xl (12px), p-3 (12px) */}
+      {/* Concentric Engine Specs Card */}
       <div className="p-3 rounded-xl surface-elevated space-y-1.5">
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-[#A1A1A6]">Audio engine</span>
-          <span className="text-[#F5F5F7] font-medium">Bit-perfect PCM</span>
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-[#8E8E93]">Audio engine</span>
+          <span className="text-[#FFFFFF] font-medium">Bit-perfect PCM</span>
         </div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-[#A1A1A6]">Artwork master</span>
-          <span className="text-[#F5F5F7] font-medium tabular-nums">
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-[#8E8E93]">Artwork master</span>
+          <span className="text-[#FFFFFF] font-medium tabular-nums">
             3000 × 3000 px
           </span>
         </div>

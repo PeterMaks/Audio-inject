@@ -53,15 +53,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
       <div className="p-4 rounded-2xl glass-panel space-y-3">
         <div className="flex items-center justify-between border-b border-white/[0.08] pb-2.5">
           <div className="flex items-center space-x-2">
-            <Key className="w-4 h-4 text-[#0A84FF]" />
-            <h4 className="text-xs font-semibold text-[#F5F5F7]">
+            <Key className="w-4 h-4 text-[#007AFF]" />
+            <h4 className="text-xs font-semibold text-[#FFFFFF]">
               Streaming and acoustic API credentials
             </h4>
           </div>
           <button
             type="button"
             onClick={() => setShowSecrets(!showSecrets)}
-            className="flex items-center space-x-1 text-xs text-[#A1A1A6] hover:text-[#F5F5F7]"
+            className="flex items-center space-x-1 text-xs text-[#8E8E93] hover:text-[#FFFFFF]"
           >
             {showSecrets ? (
               <>
@@ -79,7 +79,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
 
         <div className="space-y-2.5 text-xs">
           <div className="grid grid-cols-3 items-center gap-3">
-            <label className="text-[#A1A1A6] font-medium text-xs">
+            <label className="text-[#8E8E93] font-medium text-xs">
               AcoustID API key
             </label>
             <input
@@ -89,12 +89,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
               onChange={(e) =>
                 setSettings({ ...settings, ACOUSTID_API_KEY: e.target.value })
               }
-              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] font-mono text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
+              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#FFFFFF] font-mono text-xs focus:outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF]"
             />
           </div>
 
           <div className="grid grid-cols-3 items-center gap-3">
-            <label className="text-[#A1A1A6] font-medium text-xs">
+            <label className="text-[#8E8E93] font-medium text-xs">
               Spotify client ID
             </label>
             <input
@@ -104,12 +104,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
               onChange={(e) =>
                 setSettings({ ...settings, SPOTIFY_CLIENT_ID: e.target.value })
               }
-              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] font-mono text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
+              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#FFFFFF] font-mono text-xs focus:outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF]"
             />
           </div>
 
           <div className="grid grid-cols-3 items-center gap-3">
-            <label className="text-[#A1A1A6] font-medium text-xs">
+            <label className="text-[#8E8E93] font-medium text-xs">
               Spotify client secret
             </label>
             <input
@@ -122,7 +122,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
                   SPOTIFY_CLIENT_SECRET: e.target.value,
                 })
               }
-              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] font-mono text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
+              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#FFFFFF] font-mono text-xs focus:outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF]"
             />
           </div>
 
@@ -192,7 +192,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
           </div>
 
           <div className="grid grid-cols-3 items-center gap-3">
-            <label className="text-[#A1A1A6] font-medium text-xs">
+            <label className="text-[#8E8E93] font-medium text-xs">
               Chromaprint binary (`fpcalc`)
             </label>
             <input
@@ -201,12 +201,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
               onChange={(e) =>
                 setSettings({ ...settings, FPCALC_PATH: e.target.value })
               }
-              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] font-mono text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
+              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#FFFFFF] font-mono text-xs focus:outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF]"
             />
           </div>
 
           <div className="grid grid-cols-3 items-center gap-3">
-            <label className="text-[#A1A1A6] font-medium text-xs">
+            <label className="text-[#8E8E93] font-medium text-xs">
               Minimum artwork size (px)
             </label>
             <input
@@ -219,12 +219,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
                   COVER_ART_MIN_RESOLUTION: parseInt(e.target.value, 10) || 600,
                 })
               }
-              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] tabular-nums text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
+              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#FFFFFF] tabular-nums text-xs focus:outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF]"
             />
           </div>
 
           <div className="grid grid-cols-3 items-center gap-3">
-            <label className="text-[#A1A1A6] font-medium text-xs">
+            <label className="text-[#8E8E93] font-medium text-xs">
               Default confidence (0.4 – 0.95)
             </label>
             <input
@@ -239,12 +239,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
                   CONFIDENCE_THRESHOLD: parseFloat(e.target.value) || 0.7,
                 })
               }
-              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] tabular-nums text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
+              className="col-span-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#FFFFFF] tabular-nums text-xs focus:outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF]"
             />
           </div>
 
           <div className="grid grid-cols-3 items-center gap-3">
-            <label className="text-[#A1A1A6] font-medium text-xs">
+            <label className="text-[#8E8E93] font-medium text-xs">
               Rate limit / timeout (sec)
             </label>
             <div className="col-span-2 grid grid-cols-2 gap-3">
@@ -259,7 +259,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
                     RATE_LIMIT_DELAY: parseFloat(e.target.value) || 1.0,
                   })
                 }
-                className="px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] tabular-nums text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
+                className="px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#FFFFFF] tabular-nums text-xs focus:outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF]"
               />
               <input
                 type="number"
@@ -272,7 +272,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onSaved }) => {
                     REQUEST_TIMEOUT: parseFloat(e.target.value) || 15.0,
                   })
                 }
-                className="px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#F5F5F7] tabular-nums text-xs focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
+                className="px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-[#FFFFFF] tabular-nums text-xs focus:outline-none focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF]"
               />
             </div>
           </div>

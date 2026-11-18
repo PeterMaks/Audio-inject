@@ -103,27 +103,27 @@ export const InspectDrawer: React.FC<InspectDrawerProps> = ({
             {/* Sheet Header */}
             <div className="flex items-center justify-between border-b border-white/[0.08] pb-3.5">
               <div className="min-w-0 pr-3">
-                <span className="text-xs font-semibold uppercase tracking-wider text-[#0A84FF]">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-[#007AFF]">
                   Track inspector
                 </span>
-                <h2 className="text-base display-heading text-[#F5F5F7] truncate mt-0.5">
+                <h2 className="text-base display-heading text-[#FFFFFF] truncate mt-0.5">
                   {item.existing_tags.TITLE?.[0] || item.filename}
                 </h2>
-                <p className="text-xs text-[#A1A1A6] truncate">
+                <p className="text-xs text-[#8E8E93] truncate">
                   {item.existing_tags.ARTIST?.join(", ") || "Unknown Artist"}
                 </p>
               </div>
               <div className="flex items-center space-x-1.5 shrink-0">
                 {totalCount > 1 && (
-                  <div className="flex items-center space-x-1 mr-2 text-xs text-[#A1A1A6]">
-                    <span className="tabular-nums font-medium mr-1 text-[#F5F5F7]">
+                  <div className="flex items-center space-x-1 mr-2 text-xs text-[#8E8E93]">
+                    <span className="tabular-nums font-medium mr-1 text-[#FFFFFF]">
                       {currentIndex + 1} of {totalCount}
                     </span>
                     <button
                       type="button"
                       onClick={() => onNavigate?.("prev")}
                       title="Previous track (Left Arrow)"
-                      className="w-7 h-7 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] active:scale-[0.98] flex items-center justify-center text-[#A1A1A6] hover:text-[#F5F5F7] transition-all"
+                      className="w-7 h-7 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] active:scale-[0.98] flex items-center justify-center text-[#8E8E93] hover:text-[#FFFFFF] transition-all"
                     >
                       <ChevronLeft className="w-3.5 h-3.5" />
                     </button>
@@ -131,7 +131,7 @@ export const InspectDrawer: React.FC<InspectDrawerProps> = ({
                       type="button"
                       onClick={() => onNavigate?.("next")}
                       title="Next track (Right Arrow)"
-                      className="w-7 h-7 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] active:scale-[0.98] flex items-center justify-center text-[#A1A1A6] hover:text-[#F5F5F7] transition-all"
+                      className="w-7 h-7 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] active:scale-[0.98] flex items-center justify-center text-[#8E8E93] hover:text-[#FFFFFF] transition-all"
                     >
                       <ChevronRight className="w-3.5 h-3.5" />
                     </button>
@@ -140,7 +140,7 @@ export const InspectDrawer: React.FC<InspectDrawerProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="w-7 h-7 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] active:scale-[0.98] flex items-center justify-center text-[#A1A1A6] hover:text-[#F5F5F7] transition-all shrink-0"
+                  className="w-7 h-7 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] active:scale-[0.98] flex items-center justify-center text-[#8E8E93] hover:text-[#FFFFFF] transition-all shrink-0"
                   title="Close (Esc)"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -173,8 +173,8 @@ export const InspectDrawer: React.FC<InspectDrawerProps> = ({
                 </div>
 
                 <div className="flex-1 min-w-0 space-y-2">
-                  <div className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-md bg-white/[0.08] border border-white/[0.12] text-xs font-medium text-[#F5F5F7]">
-                    <AudioWaveform className="w-3 h-3 text-[#0A84FF]" />
+                  <div className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-white/[0.08] border border-white/[0.12] text-[11px] font-medium text-[#FFFFFF]">
+                    <AudioWaveform className="w-3 h-3 text-[#007AFF]" />
                     <span>
                       {item.audio_format === "mp3"
                         ? "MPEG Audio"
@@ -185,31 +185,31 @@ export const InspectDrawer: React.FC<InspectDrawerProps> = ({
                   </div>
 
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs tabular-nums">
-                    <div className="text-[#A1A1A6]">
+                    <div className="text-[#8E8E93]">
                       Resolution:{" "}
-                      <span className="text-[#F5F5F7] font-medium">
+                      <span className="text-[#FFFFFF] font-medium">
                         {item.bits_per_sample}-bit /{" "}
                         {(item.sample_rate / 1000).toFixed(1)} kHz
                       </span>
                     </div>
-                    <div className="text-[#A1A1A6]">
+                    <div className="text-[#8E8E93]">
                       Duration:{" "}
-                      <span className="text-[#F5F5F7] font-medium">
+                      <span className="text-[#FFFFFF] font-medium">
                         {Math.floor(item.duration_seconds / 60)}:
                         {Math.floor(item.duration_seconds % 60)
                           .toString()
                           .padStart(2, "0")}
                       </span>
                     </div>
-                    <div className="text-[#A1A1A6]">
+                    <div className="text-[#8E8E93]">
                       Channels:{" "}
-                      <span className="text-[#F5F5F7] font-medium">
+                      <span className="text-[#FFFFFF] font-medium">
                         {item.channels === 2 ? "Stereo" : `${item.channels} Ch`}
                       </span>
                     </div>
-                    <div className="text-[#A1A1A6]">
+                    <div className="text-[#8E8E93]">
                       Artwork:{" "}
-                      <span className="text-[#F5F5F7] font-medium">
+                      <span className="text-[#FFFFFF] font-medium">
                         {item.cover_art_info
                           ? `${item.cover_art_info.width}×${item.cover_art_info.height}`
                           : "Missing"}
@@ -217,7 +217,7 @@ export const InspectDrawer: React.FC<InspectDrawerProps> = ({
                     </div>
                   </div>
 
-                  <div className="text-xs font-mono text-[#6E6E73] truncate pt-0.5">
+                  <div className="text-[11px] font-mono text-[#636366] truncate pt-0.5">
                     {item.path}
                   </div>
                 </div>
@@ -227,8 +227,8 @@ export const InspectDrawer: React.FC<InspectDrawerProps> = ({
               <div className="p-4 rounded-xl surface-elevated space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <Fingerprint className="w-4 h-4 text-[#0A84FF]" />
-                    <span className="text-xs font-semibold text-[#F5F5F7]">
+                    <Fingerprint className="w-4 h-4 text-[#007AFF]" />
+                    <span className="text-xs font-semibold text-[#FFFFFF]">
                       Chromaprint acoustic fingerprint
                     </span>
                   </div>
@@ -328,7 +328,7 @@ export const InspectDrawer: React.FC<InspectDrawerProps> = ({
 
             {/* Sheet Footer */}
             <div className="border-t border-white/[0.08] pt-3.5 flex items-center justify-between">
-              <span className="text-xs text-[#A1A1A6] tabular-nums">
+              <span className="text-[11px] text-[#8E8E93] tabular-nums">
                 {item.is_incomplete
                   ? `${item.missing_fields.length} core field(s) missing`
                   : "All canonical fields verified"}

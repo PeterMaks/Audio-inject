@@ -103,7 +103,7 @@ export const DropZone: React.FC<DropZoneProps> = ({
       animate={{
         scale: isDragOver ? 1.01 : 1,
         borderColor: isDragOver
-          ? "rgba(10, 132, 255, 0.7)"
+          ? "rgba(0, 122, 255, 0.7)"
           : "rgba(255, 255, 255, 0.08)",
       }}
       transition={{ type: "spring", duration: 0.25, bounce: 0 }}
@@ -126,7 +126,7 @@ export const DropZone: React.FC<DropZoneProps> = ({
         }
       }}
       className={`relative w-full rounded-2xl p-8 flex flex-col items-center justify-center text-center glass-panel ${
-        isDragOver ? "bg-[#0A84FF]/10" : ""
+        isDragOver ? "bg-[#007AFF]/10" : ""
       }`}
     >
       <input
@@ -145,19 +145,19 @@ export const DropZone: React.FC<DropZoneProps> = ({
         className="hidden"
       />
 
-      {/* Concentric Icon Tile: Outer rounded-2xl (24px) p-8 (32px), Inner rounded-xl (12px) */}
+      {/* Concentric Icon Tile */}
       <div className="w-14 h-14 rounded-xl surface-elevated flex items-center justify-center mb-4 shadow-md">
         <UploadCloud
           className={`w-6 h-6 transition-transform duration-150 ${
-            isDragOver ? "text-[#0A84FF] scale-105" : "text-[#F5F5F7]"
+            isDragOver ? "text-[#007AFF] scale-105" : "text-[#FFFFFF]"
           }`}
         />
       </div>
 
-      <h3 className="text-base display-heading text-[#F5F5F7]">
+      <h3 className="text-base display-heading text-[#FFFFFF]">
         {isScanning ? "Scanning audio masters…" : "Drop audio files or folders"}
       </h3>
-      <p className="text-xs text-[#A1A1A6] mt-1 max-w-[44ch] leading-relaxed">
+      <p className="text-xs text-[#8E8E93] mt-1 max-w-[44ch] leading-relaxed">
         Drag FLAC, MP3, or uncompressed WAV masters from Explorer to inspect
         headers, verify acoustic fingerprints, and embed artwork.
       </p>
@@ -167,9 +167,9 @@ export const DropZone: React.FC<DropZoneProps> = ({
           type="button"
           onClick={handleSelectFiles}
           disabled={isScanning}
-          className="apple-btn-secondary flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-medium text-[#F5F5F7] disabled:opacity-50 cursor-pointer"
+          className="apple-btn-secondary flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-medium text-[#FFFFFF] disabled:opacity-50 cursor-pointer"
         >
-          <FileAudio className="w-3.5 h-3.5 text-[#0A84FF]" />
+          <FileAudio className="w-3.5 h-3.5 text-[#007AFF]" />
           <span>Choose files…</span>
         </button>
 

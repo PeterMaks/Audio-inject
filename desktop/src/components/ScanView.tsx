@@ -1,5 +1,9 @@
 import React, { useState, useMemo, useDeferredValue, useCallback } from "react";
-import { motion } from "framer-motion";
+import {
+  SegmentedControl,
+  SegmentedControlIndicator,
+  SegmentedControlItem,
+} from "@ui-sdk/react/segmented-control";
 import {
   CheckCircle2,
   AlertCircle,
@@ -59,21 +63,21 @@ const TrackRow = React.memo(function TrackRow({
   return (
     <tr
       onDoubleClick={() => onInspect(item)}
-      className={`transition-colors cursor-default ${
+      className={`transition-colors cursor-default border-b border-white/[0.04] ${
         isSelected
-          ? "bg-[#0A84FF]/15 hover:bg-[#0A84FF]/20"
-          : "hover:bg-[#1F1F1F]"
+          ? "bg-[#007AFF]/15 hover:bg-[#007AFF]/20 border-l-2 border-l-[#007AFF]"
+          : "hover:bg-white/[0.04]"
       }`}
     >
       <td className="py-2.5 pl-4 pr-2">
         <button
           type="button"
           onClick={() => onToggleSelect(item.path)}
-          className="text-[#A1A1A6] hover:text-[#F5F5F7] flex items-center p-0.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A84FF]"
+          className="text-[#8E8E93] hover:text-[#FFFFFF] flex items-center p-0.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007AFF]"
           title="Select track"
         >
           {isSelected ? (
-            <CheckSquare className="w-4 h-4 text-[#0A84FF]" />
+            <CheckSquare className="w-4 h-4 text-[#007AFF]" />
           ) : (
             <Square className="w-4 h-4" />
           )}
@@ -82,23 +86,23 @@ const TrackRow = React.memo(function TrackRow({
 
       {/* Title, Artist & Specs */}
       <td className="py-2.5 px-3 max-w-xs">
-        <div className="font-medium text-[#F5F5F7] truncate text-xs">{title}</div>
-        <div className="text-xs text-[#A1A1A6] truncate tabular-nums">
+        <div className="font-medium text-[#FFFFFF] truncate text-xs">{title}</div>
+        <div className="text-[11px] text-[#8E8E93] truncate tabular-nums">
           {artist} • {mins}:{secs.toString().padStart(2, "0")} •{" "}
-          <span className="font-mono text-xs text-[#6E6E73]">
+          <span className="font-mono text-[10px] text-[#636366]">
             {item.filename}
           </span>
         </div>
       </td>
 
       {/* Album */}
-      <td className="py-2.5 px-3 text-[#A1A1A6] truncate max-w-[180px] text-xs">
+      <td className="py-2.5 px-3 text-[#8E8E93] truncate max-w-[180px] text-xs">
         {album}
       </td>
 
       {/* Format Badge */}
       <td className="py-2.5 px-3 text-center tabular-nums">
-        <span className="inline-block px-2 py-0.5 rounded-md text-xs font-semibold uppercase tracking-wide bg-white/[0.08] text-[#F5F5F7] border border-white/[0.08]">
+        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-white/[0.08] text-[#FFFFFF] border border-white/[0.08]">
           {item.audio_format}
         </span>
       </td>
@@ -106,14 +110,14 @@ const TrackRow = React.memo(function TrackRow({
       {/* Artwork Resolution */}
       <td className="py-2.5 px-3 text-center tabular-nums">
         {item.has_cover_art && item.cover_art_info ? (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-[#34C759]/15 text-[#34C759] text-xs font-medium">
-            <ImageIcon className="w-3.5 h-3.5" />
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-[#34C759]/15 text-[#34C759] border border-[#34C759]/30 text-[11px] font-medium">
+            <ImageIcon className="w-3 h-3" />
             <span>
               {item.cover_art_info.width}×{item.cover_art_info.height}
             </span>
           </span>
         ) : (
-          <span className="inline-block px-2 py-0.5 rounded-md bg-white/[0.06] text-[#A1A1A6] text-xs">
+          <span className="inline-block px-2 py-0.5 rounded-full bg-white/[0.06] text-[#8E8E93] text-[11px]">
             None
           </span>
         )}
@@ -122,13 +126,13 @@ const TrackRow = React.memo(function TrackRow({
       {/* Status */}
       <td className="py-2.5 px-3 text-center">
         {item.is_incomplete ? (
-          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-[#FF9F0A]/15 text-[#FF9F0A] font-medium text-xs">
-            <AlertCircle className="w-3.5 h-3.5" />
+          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-[#FF9500]/15 text-[#FF9500] border border-[#FF9500]/30 font-medium text-[11px]">
+            <AlertCircle className="w-3 h-3" />
             <span>Incomplete</span>
           </span>
         ) : (
-          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-[#34C759]/15 text-[#34C759] font-medium text-xs">
-            <CheckCircle2 className="w-3.5 h-3.5" />
+          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-[#34C759]/15 text-[#34C759] border border-[#34C759]/30 font-medium text-[11px]">
+            <CheckCircle2 className="w-3 h-3" />
             <span>Complete</span>
           </span>
         )}
@@ -141,19 +145,19 @@ const TrackRow = React.memo(function TrackRow({
             {item.missing_fields.slice(0, 3).map((f) => (
               <span
                 key={f}
-                className="px-1.5 py-0.5 rounded-md bg-white/[0.06] text-[#A1A1A6] text-xs font-medium"
+                className="px-1.5 py-0.5 rounded-md bg-white/[0.06] text-[#8E8E93] text-[10px] font-medium border border-white/[0.06]"
               >
                 {f}
               </span>
             ))}
             {item.missing_fields.length > 3 && (
-              <span className="px-1.5 py-0.5 rounded-md bg-white/[0.04] text-[#6E6E73] text-xs tabular-nums">
+              <span className="px-1.5 py-0.5 rounded-md bg-white/[0.04] text-[#636366] text-[10px] tabular-nums">
                 +{item.missing_fields.length - 3}
               </span>
             )}
           </div>
         ) : (
-          <span className="text-[#6E6E73] text-xs">—</span>
+          <span className="text-[#636366] text-xs">—</span>
         )}
       </td>
 
@@ -164,7 +168,7 @@ const TrackRow = React.memo(function TrackRow({
             type="button"
             onClick={() => onInspect(item)}
             title="Inspect track"
-            className="apple-btn-secondary p-1.5 rounded-lg text-[#A1A1A6] hover:text-[#F5F5F7]"
+            className="apple-btn-secondary p-1.5 rounded-lg text-[#8E8E93] hover:text-[#FFFFFF]"
           >
             <Eye className="w-3.5 h-3.5" />
           </button>
@@ -173,7 +177,7 @@ const TrackRow = React.memo(function TrackRow({
               type="button"
               onClick={() => onConvertSingle(item)}
               title="Encode WAV to FLAC"
-              className="apple-btn-secondary p-1.5 rounded-lg text-[#FF9F0A]"
+              className="apple-btn-secondary p-1.5 rounded-lg text-[#FF9500] hover:text-[#FFA024]"
             >
               <Disc className="w-3.5 h-3.5" />
             </button>
@@ -363,36 +367,23 @@ export const ScanView: React.FC<ScanViewProps> = ({
             )}
           </div>
 
-          {/* Segmented Control */}
-          <div className="flex items-center apple-segmented">
-            {["all", "flac", "mp3", "wav"].map((fmt) => {
-              const active = filterFormat === fmt;
-              return (
-                <button
-                  key={fmt}
-                  type="button"
-                  onClick={() => {
-                    setFilterFormat(fmt);
-                    setCurrentPage(1);
-                  }}
-                  className={`relative px-3 py-1 text-xs font-medium uppercase transition-colors rounded-md ${
-                    active
-                      ? "text-[#F5F5F7]"
-                      : "text-[#A1A1A6] hover:text-[#F5F5F7]"
-                  }`}
-                >
-                  {active && (
-                    <motion.div
-                      layoutId="scan-format-segmented"
-                      transition={{ type: "spring", duration: 0.24, bounce: 0 }}
-                      className="absolute inset-0 apple-segmented-pill"
-                    />
-                  )}
-                  <span className="relative z-10">{fmt}</span>
-                </button>
-              );
-            })}
-          </div>
+          {/* UI-SDK Segmented Control */}
+          <SegmentedControl
+            aria-label="Filter audio tracks by format"
+            value={filterFormat}
+            onValueChange={(val) => {
+              if (val) {
+                setFilterFormat(val);
+                setCurrentPage(1);
+              }
+            }}
+          >
+            <SegmentedControlIndicator />
+            <SegmentedControlItem value="all">ALL</SegmentedControlItem>
+            <SegmentedControlItem value="flac">FLAC</SegmentedControlItem>
+            <SegmentedControlItem value="mp3">MP3</SegmentedControlItem>
+            <SegmentedControlItem value="wav">WAV</SegmentedControlItem>
+          </SegmentedControl>
 
           {/* Incomplete Filter Pill */}
           <button
@@ -403,8 +394,8 @@ export const ScanView: React.FC<ScanViewProps> = ({
             }}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all tabular-nums ${
               onlyIncomplete
-                ? "bg-[#FF9F0A]/20 text-[#FF9F0A] border-[#FF9F0A]/40"
-                : "bg-white/[0.04] text-[#A1A1A6] border-white/[0.08] hover:text-[#F5F5F7]"
+                ? "bg-[#FF9500]/20 text-[#FF9500] border-[#FF9500]/40"
+                : "bg-white/[0.04] text-[#8E8E93] border-white/[0.08] hover:text-[#FFFFFF]"
             }`}
           >
             Incomplete ({incompleteCount})

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Switch, SwitchThumb } from "@ui-sdk/react/switch";
 import { Disc, FolderOpen, CheckCircle2, AlertCircle } from "lucide-react";
 import { ConvertItemResult, ProgressEvent, ScanItem } from "../types/injector";
 import { pickLibraryFolder } from "../lib/tauriClient";
@@ -151,25 +152,20 @@ export const ConvertView: React.FC<ConvertViewProps> = ({
             className="flex items-center justify-between py-2.5 cursor-pointer group"
           >
             <div>
-              <div className="text-xs font-medium text-[#F5F5F7] group-hover:text-white">
+              <div className="text-xs font-medium text-[#FFFFFF] group-hover:text-white">
                 {row.label}
               </div>
-              <div className="text-xs text-[#A1A1A6] mt-0.5">{row.desc}</div>
+              <div className="text-xs text-[#8E8E93] mt-0.5">{row.desc}</div>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={row.checked}
-              className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-150 shrink-0 ${
-                row.checked ? "bg-[#34C759]" : "bg-white/[0.14]"
-              }`}
-            >
-              <div
-                className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-150 ${
-                  row.checked ? "translate-x-4" : "translate-x-0"
-                }`}
-              />
-            </button>
+            <div onClick={(e) => e.stopPropagation()}>
+              <Switch
+                aria-label={row.label}
+                checked={row.checked}
+                onCheckedChange={(val) => row.setChecked(Boolean(val))}
+              >
+                <SwitchThumb />
+              </Switch>
+            </div>
           </div>
         ))}
       </div>

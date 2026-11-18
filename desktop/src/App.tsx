@@ -455,21 +455,21 @@ export const App: React.FC = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -12, scale: 0.96 }}
             transition={{ type: "spring", duration: 0.3, bounce: 0 }}
-            className="fixed top-14 left-1/2 -translate-x-1/2 z-50 flex items-center space-x-3 px-4 py-2.5 rounded-xl glass-panel shadow-2xl min-w-[320px] max-w-md border border-white/10"
+            className="fixed top-14 left-1/2 -translate-x-1/2 z-50 flex items-center space-x-3 px-4 py-2.5 rounded-2xl glass-panel shadow-2xl min-w-[320px] max-w-md border border-white/10"
           >
             {toast.type === "error" ? (
-              <AlertCircle className="w-4 h-4 text-[#FF453A] shrink-0" />
+              <AlertCircle className="w-4 h-4 text-[#FF3B30] shrink-0" />
             ) : (
               <CheckCircle2 className="w-4 h-4 text-[#34C759] shrink-0" />
             )}
             <div className="flex-1 text-xs">
-              <div className="font-semibold text-[#F5F5F7]">{toast.title}</div>
-              <div className="text-[#A1A1A6] truncate">{toast.message}</div>
+              <div className="font-semibold text-[#FFFFFF]">{toast.title}</div>
+              <div className="text-[#8E8E93] truncate">{toast.message}</div>
             </div>
             <button
               type="button"
               onClick={() => setToast(null)}
-              className="p-1 rounded-md text-[#A1A1A6] hover:text-[#F5F5F7] hover:bg-white/10 transition-colors"
+              className="p-1 rounded-md text-[#8E8E93] hover:text-[#FFFFFF] hover:bg-white/10 transition-colors"
               title="Dismiss notification"
             >
               <X className="w-3.5 h-3.5" />
@@ -495,10 +495,10 @@ export const App: React.FC = () => {
           {/* Header Bar */}
           <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-white/[0.08] shrink-0">
             <div>
-              <h1 className="text-xl display-heading text-[#F5F5F7]">
+              <h1 className="text-xl display-heading text-[#FFFFFF]">
                 {viewMeta[activeTab].title}
               </h1>
-              <p className="text-xs text-[#A1A1A6] mt-0.5 tabular-nums">
+              <p className="text-xs text-[#8E8E93] mt-0.5 tabular-nums">
                 {viewMeta[activeTab].subtitle}
               </p>
             </div>
@@ -510,8 +510,8 @@ export const App: React.FC = () => {
                 title="Toggle recursive subfolder scanning"
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                   recursiveScan
-                    ? "bg-[#0A84FF]/15 text-[#0A84FF] border-[#0A84FF]/35"
-                    : "bg-white/[0.04] text-[#A1A1A6] border-white/[0.08]"
+                    ? "bg-[#007AFF]/15 text-[#007AFF] border-[#007AFF]/35"
+                    : "bg-white/[0.04] text-[#8E8E93] border-white/[0.08]"
                 }`}
               >
                 Recursive: {recursiveScan ? "On" : "Off"}
@@ -524,7 +524,7 @@ export const App: React.FC = () => {
                     onClick={handleRescan}
                     disabled={isScanning}
                     title="Rescan current library tracks"
-                    className="apple-btn-secondary flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#F5F5F7]"
+                    className="apple-btn-secondary flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#FFFFFF]"
                   >
                     <RefreshCw
                       className={`w-3.5 h-3.5 text-[#34C759] ${
@@ -537,18 +537,18 @@ export const App: React.FC = () => {
                     type="button"
                     onClick={handleQuickAddFiles}
                     disabled={isScanning}
-                    className="apple-btn-secondary flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#F5F5F7]"
+                    className="apple-btn-secondary flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#FFFFFF]"
                   >
-                    <Plus className="w-3.5 h-3.5 text-[#0A84FF]" />
+                    <Plus className="w-3.5 h-3.5 text-[#007AFF]" />
                     <span>Add tracks</span>
                   </button>
                   <button
                     type="button"
                     onClick={handleQuickAddFolder}
                     disabled={isScanning}
-                    className="apple-btn-secondary flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#F5F5F7]"
+                    className="apple-btn-secondary flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#FFFFFF]"
                   >
-                    <FolderPlus className="w-3.5 h-3.5 text-[#0A84FF]" />
+                    <FolderPlus className="w-3.5 h-3.5 text-[#007AFF]" />
                     <span>Add folder</span>
                   </button>
                   <button
@@ -556,7 +556,7 @@ export const App: React.FC = () => {
                     onClick={handleClearLibrary}
                     disabled={isScanning}
                     title="Clear library list"
-                    className="apple-btn-secondary flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#A1A1A6] hover:text-[#FF453A]"
+                    className="apple-btn-secondary flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#8E8E93] hover:text-[#FF3B30]"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

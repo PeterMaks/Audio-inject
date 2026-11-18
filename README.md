@@ -6,15 +6,15 @@
 
 A CLI and Python library that scans local audio files (**FLAC** and **MP3**), converts uncompressed **WAV** tracks into FLAC, queries music streaming services and databases for canonical track identity, and writes standardized **Vorbis Comments / ID3v2.4 tags** and **cover art (up to 3000x3000px)**.
 
-### Why flac-meta-injector?
+## Why flac-meta-injector?
 
-Curating local lossless music libraries frequently suffers from:
-- Incomplete or missing tags where stripped filenames make acoustic waveform recognition essential.
-- Low-resolution embedded thumbnails (e.g., 300x300px) that look pixelated on modern displays.
-- Incorrect compound-artist splitting that mangles collaborative artist tags (e.g., breaking bands like *Earth, Wind & Fire* into separate artist entries).
+Local lossless music libraries frequently encounter:
+- Incomplete or missing tags where uninformative filenames make acoustic waveform recognition necessary.
+- Low-resolution embedded thumbnails (e.g., 300x300px) on high-density displays.
+- Incorrect delimiter-based artist splitting that separates compound band names (e.g., dividing *Earth, Wind & Fire* into separate artist entries).
 - Unstandardized WAV containers that lack native metadata headers.
 
-`flac-meta-injector` solves these issues through a deterministic acoustic fingerprinting and multi-provider waterfall pipeline, injecting clean tags and high-resolution cover artwork directly into audio headers without re-encoding audio streams.
+`flac-meta-injector` resolves these issues through acoustic fingerprinting and a multi-provider waterfall pipeline, injecting standardized tags and high-resolution cover artwork directly into audio headers without re-encoding audio streams.
 
 ---
 
@@ -25,7 +25,7 @@ Curating local lossless music libraries frequently suffers from:
 - **WAV to FLAC Conversion**: FFmpeg-powered conversion of uncompressed `.wav`, `.wave`, and `.aiff` files to FLAC with configurable compression levels and post-conversion tagging.
 - **Acoustic Audio Fingerprinting**: Uses Chromaprint (`fpcalc`) and AcoustID to identify tracks by audio waveform, enabling identification even when existing tags or filenames are missing or inaccurate.
 - **Multi-Provider Waterfall Pipeline**:
-  - **AcoustID & MusicBrainz**: Authoritative MusicBrainz IDs (`MUSICBRAINZ_TRACKID`, `MUSICBRAINZ_ALBUMID`), artist credits, and ISRC (International Standard Recording Code).
+  - **AcoustID & MusicBrainz**: Authoritative MusicBrainz Identifiers (MBIDs: `MUSICBRAINZ_TRACKID`, `MUSICBRAINZ_ALBUMID`), artist credits, and ISRC (International Standard Recording Code).
   - **Apple iTunes Search API**: Unauthenticated public search endpoint, retrieving cover artwork up to **3000x3000px** directly from Apple's CDN by rewriting image URL dimensions.
   - **Deezer Public API**: Unauthenticated public endpoint providing track **BPM (tempo)** estimates, explicit advisory ratings, and ISRC validation.
   - **Spotify Web API**: Enriched streaming metadata via Client Credentials flow.
@@ -118,7 +118,7 @@ sudo apt-get install -y ffmpeg libchromaprint-tools
 ### Desktop Application Dependencies (Optional, for GUI Development)
 
 If developing or building the native Windows desktop application:
-1. **Node.js** (v18+) and **npm** (or **pnpm**)
+1. **Node.js** (v22+) and **npm** (or **pnpm**)
 2. **Rust** (1.78+) and **Cargo**
 3. **Microsoft C++ Build Tools** (Visual Studio MSVC) & **WebView2 Runtime** (pre-installed on Windows 11)
 
@@ -170,10 +170,10 @@ cp .env.example .env
 | `REQUEST_TIMEOUT` | `15.0` | HTTP request timeout in seconds for provider endpoints. |
 | `COVER_ART_MIN_RESOLUTION` | `600` | Minimum acceptable cover art width/height in pixels. |
 | `CONFIDENCE_THRESHOLD` | `0.70` | Minimum composite confidence score (0.0 to 1.0) to auto-inject tags. |
-| `FFMPEG_PATH` | `ffmpeg` | Path or command name for the `ffmpeg` executable. |
+| `FFMPEG_PATH` | `ffmpeg` | Path or command name for the `ffmpeg` executable override. |
 | `FPCALC_PATH` | `fpcalc` | Path or command name for the `fpcalc` executable. |
 
-> **Note:** **Apple iTunes**, **Deezer**, and **Songlink / Odesli** operate without mandatory API keys or credentials. If Spotify, Discogs, or AcoustID keys are omitted, the tool automatically uses public endpoints and filename heuristics.
+> **Note:** **Apple iTunes**, **Deezer**, and **Songlink / Odesli** operate without mandatory API keys or credentials. If Spotify, Discogs, or AcoustID keys are omitted, the tool automatically uses public endpoints and filename heuristics. Both `ffmpeg` and `fpcalc` default to system `PATH` binaries and can be overridden via `.env`.
 
 ---
 
@@ -310,6 +310,9 @@ flac-meta-injector inject ./music/ --overwrite
 
 # 5. Disable auto-converting WAV files when processing mixed folders
 flac-meta-injector inject ./music/ --no-convert-wav
+
+# 6. Inject metadata directly from a streaming link (Spotify, Apple Music, Deezer, YouTube)
+flac-meta-injector inject ./music/track.flac --song-link "https://song.link/s/4cOdK2wGLETKBW3PvgPWqT"
 ```
 
 **CLI Flags for `inject`:**
@@ -323,7 +326,7 @@ flac-meta-injector inject ./music/ --no-convert-wav
 - `--convert-wav / --no-convert-wav`: Auto-converts any discovered WAV files to FLAC and injects tags into the resulting FLAC (default: `True`).
 - `--recursive / --no-recursive, -r`: Recurse into subdirectories (default: `True`).
 
-> **Hardware Player & DAP Compatibility:** While 3000x3000px cover art renders crisply on 4K and Retina displays, certain legacy digital audio players (DAPs) or automotive infotainment units with low embedded memory may struggle with image frames exceeding 2MB. Use `--overwrite-art` or folder-level artwork if targeting memory-constrained hardware.
+> **Hardware Player & DAP Compatibility:** Embedded cover artwork up to 3000x3000px can exceed 2MB. Certain legacy digital audio players (DAPs) or automotive head units with strict memory ceilings may experience playback delays or failure. If targeting memory-constrained hardware, manage image resolution via external optimization tools or folder-level artwork.
 
 ---
 
@@ -434,23 +437,32 @@ flac-meta-injector fingerprint ./music/"01 - Daft Punk - One More Time.mp3"
 `flac-meta-injector` can also be used programmatically in Python applications:
 
 ```python
+import asyncio
 from pathlib import Path
-from flac_injector.scanner import AudioScanner
-from flac_injector.waterfall import WaterfallMerger
-from flac_injector.writer import MetadataWriter
+from flac_injector.scanner import inspect_audio
+from flac_injector.fingerprint import parse_filename_metadata
+from flac_injector.merger import aggregate_candidates
+from flac_injector.providers.apple_itunes import AppleITunesProvider
+from flac_injector.writer import inject_metadata
 
-# 1. Scan existing tags and artwork status
-scanner = AudioScanner()
-track_info = scanner.scan_file(Path("music/track.flac"))
+async def main():
+    track_path = Path("music/track.flac")
+    scan_res = inspect_audio(track_path)
+    hints = parse_filename_metadata(track_path)
 
-# 2. Query multi-provider waterfall with acoustic fingerprinting
-merger = WaterfallMerger()
-result = await merger.resolve(track_info)
+    provider = AppleITunesProvider()
+    try:
+        candidates = await provider.lookup_by_query(hints["title"], hints.get("artist"))
+        best = aggregate_candidates(
+            candidates, scan_res.duration_seconds, hints, confidence_threshold=0.70
+        )
+        if best:
+            inject_metadata(track_path, best)
+    finally:
+        await provider.close()
 
-# 3. Inject canonical tags and artwork if confidence meets threshold
-if result and result.confidence >= 0.70:
-    writer = MetadataWriter()
-    writer.write_metadata(Path("music/track.flac"), result.metadata)
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ---
@@ -574,16 +586,6 @@ pytest tests/test_providers.py -v      # Async API provider tests
 pytest tests/test_writer.py -v         # Mutagen writer verification tests
 pytest tests/test_spotify_import.py -v # Spotify CSV/JSON import & similarity tests
 pytest tests/test_cli.py -v            # CLI entrypoint and option tests
-
-# Run code quality and linting checks
-ruff check src tests
-
-# Verify Desktop TypeScript frontend & Rust backend
-cd desktop
-npm run build
-cd src-tauri
-cargo check
-```
 
 # Run code quality and linting checks
 ruff check src tests

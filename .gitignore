@@ -15,3 +15,6 @@ desktop/node_modules
 build/
 dist/
 goldfish_review_report.md
+skills/
+.hermes/
+.zcode/

@@ -501,7 +501,7 @@ def inject(
     ] = False,
     overwrite: Annotated[
         bool,
-        typer.Option("--overwrite", help="Overwrite existing non-empty tags."),
+        typer.Option("--overwrite/--no-overwrite", help="Overwrite existing non-empty tags."),
     ] = False,
     overwrite_art: Annotated[
         bool,
@@ -632,7 +632,7 @@ def match_spotify(
     overwrite: Annotated[
         bool,
         typer.Option(
-            "--overwrite",
+            "--overwrite/--no-overwrite",
             help="Overwrite existing non-empty tags instead of only filling missing gaps.",
         ),
     ] = False,
@@ -913,7 +913,7 @@ def import_spotify(
     overwrite: Annotated[
         bool,
         typer.Option(
-            "--overwrite",
+            "--overwrite/--no-overwrite",
             help="Overwrite existing non-empty tags instead of only filling missing gaps.",
         ),
     ] = False,

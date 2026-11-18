@@ -30,7 +30,23 @@ class ConversionError(Exception):
 
 
 def find_ffmpeg_binary() -> str:
-    """Find ffmpeg binary in system PATH or WinGet package directories."""
+    """Find ffmpeg binary in configured environment, system PATH or WinGet package directories."""
+    import os
+
+    env_ffmpeg = os.environ.get("FFMPEG_PATH")
+    if env_ffmpeg and (shutil.which(env_ffmpeg) or Path(env_ffmpeg).is_file()):
+        return env_ffmpeg
+
+    try:
+        from flac_injector.config import get_settings
+
+        cfg_ffmpeg = get_settings().ffmpeg_path
+        if cfg_ffmpeg and cfg_ffmpeg != "ffmpeg":
+            if shutil.which(cfg_ffmpeg) or Path(cfg_ffmpeg).is_file():
+                return cfg_ffmpeg
+    except Exception:
+        pass
+
     bin_path = shutil.which("ffmpeg")
     if bin_path:
         return bin_path
@@ -106,9 +122,13 @@ def convert_to_flac(
 
     # Verify converted FLAC file integrity with Mutagen
     try:
+        if not dest.is_file() or dest.stat().st_size == 0:
+            raise ConversionError(f"Converted FLAC file is missing or empty: {dest}")
         audio = FLAC(str(dest))
         if getattr(audio.info, "length", 0) <= 0:
             raise ConversionError(f"Converted file has invalid duration: {dest}")
+        if getattr(audio.info, "total_samples", 0) <= 0:
+            raise ConversionError(f"Converted file has invalid sample count: {dest}")
     except FLACNoHeaderError as e:
         raise ConversionError(f"Converted file is not a valid FLAC audio file: {dest}") from e
 

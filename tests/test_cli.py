@@ -42,3 +42,29 @@ def test_cli_subcommand_help_short_flag():
     assert "target" in result.output
     assert "--recursive" in result.output or "-r" in result.output
 
+
+def test_cli_inject_no_overwrite_flag():
+    """Verify that inject accepts --no-overwrite without a parsing error."""
+    runner = CliRunner()
+    result = runner.invoke(app, ["inject", "--help"])
+    assert result.exit_code == 0
+    assert "--overwrite" in result.output
+    assert "--no-overwrite" in result.output
+
+
+def test_public_package_exports():
+    """Verify that flac_injector exports core library functions."""
+    import flac_injector
+
+    expected = [
+        "inspect_audio",
+        "scan_path",
+        "inject_metadata",
+        "convert_to_flac",
+        "generate_fingerprint",
+        "aggregate_candidates",
+        "get_settings",
+    ]
+    for symbol in expected:
+        assert hasattr(flac_injector, symbol)
+

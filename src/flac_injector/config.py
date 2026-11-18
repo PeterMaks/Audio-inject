@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     cover_art_min_resolution: int = Field(default=600, alias="COVER_ART_MIN_RESOLUTION")
     confidence_threshold: float = Field(default=0.70, alias="CONFIDENCE_THRESHOLD")
     request_timeout: float = Field(default=15.0, alias="REQUEST_TIMEOUT")
+    ffmpeg_path: str = Field(default="ffmpeg", alias="FFMPEG_PATH")
     fpcalc_path: str = Field(default="fpcalc", alias="FPCALC_PATH")
 
 

@@ -16,6 +16,16 @@ def test_find_ffmpeg_binary() -> None:
     assert "ffmpeg" in binary.lower()
 
 
+def test_find_ffmpeg_binary_custom_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Test that find_ffmpeg_binary respects FFMPEG_PATH environment variable."""
+    fake_ffmpeg = tmp_path / "custom_ffmpeg.exe"
+    fake_ffmpeg.write_text("#!/bin/sh\nexit 0")
+    monkeypatch.setenv("FFMPEG_PATH", str(fake_ffmpeg))
+
+    binary = find_ffmpeg_binary()
+    assert binary == str(fake_ffmpeg)
+
+
 def test_convert_wav_to_flac_default(untagged_wav: Path, tmp_path: Path) -> None:
     """Test converting a synthetic WAV file to FLAC in the same folder."""
     # Create isolated copy of wav

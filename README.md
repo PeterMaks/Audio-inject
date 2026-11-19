@@ -4,39 +4,39 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-A CLI and Python library that scans local audio files (**FLAC** and **MP3**), converts uncompressed **WAV** tracks into FLAC, queries music streaming services and databases for canonical track identity, and writes standardized **Vorbis Comments / ID3v2.4 tags** and **cover art (up to 3000x3000px)**.
+A CLI and Python library that scans local FLAC and MP3 files, converts WAV tracks to FLAC, queries music databases for track identity, and writes Vorbis comments, ID3v2.4 tags, and cover art up to 3000x3000px.
 
-## Why flac-meta-injector?
+## Why flac-meta-injector
 
-Local lossless music libraries frequently encounter:
-- Incomplete or missing tags where uninformative filenames make acoustic waveform recognition necessary.
-- Low-resolution embedded thumbnails (e.g., 300x300px) on high-density displays.
-- Incorrect delimiter-based artist splitting that separates compound band names (e.g., dividing *Earth, Wind & Fire* into separate artist entries).
-- Unstandardized WAV containers that lack native metadata headers.
+Local music libraries frequently have these issues:
+- Incomplete or missing tags where filenames provide no metadata.
+- Low-resolution embedded thumbnails (300x300px) on high-density displays.
+- Delimiter-based artist splitters that split compound band names like Earth, Wind & Fire.
+- WAV files that lack native metadata headers.
 
-`flac-meta-injector` resolves these issues through acoustic fingerprinting and a multi-provider waterfall pipeline, injecting standardized tags and high-resolution cover artwork directly into audio headers without re-encoding audio streams.
-
----
-
-## Key Features
-
-- **Multi-Format Lossless Metadata Tagging**: Direct container and tag manipulation via Mutagen (FLAC Vorbis Comments & Picture blocks; MP3 ID3v2.4 & APIC frames) without audio stream re-encoding.
-- **Multi-Artist Separation & Compound Band Preservation**: Collaborating artists (delimited by commas, semicolons, slashes, or `feat.`/`ft.`/`&`) are written as individual `ARTIST` entries in FLAC Vorbis comments (repeated tags) and ID3v2.4 `TPE1` lists, while preserving known compound artist names (e.g. *Earth, Wind & Fire*, *Tyler, The Creator*, *AC/DC*, *Simon & Garfunkel*).
-- **WAV to FLAC Conversion**: FFmpeg-powered conversion of uncompressed `.wav`, `.wave`, and `.aiff` files to FLAC with configurable compression levels and post-conversion tagging.
-- **Acoustic Audio Fingerprinting**: Uses Chromaprint (`fpcalc`) and AcoustID to identify tracks by audio waveform, enabling identification even when existing tags or filenames are missing or inaccurate.
-- **Multi-Provider Waterfall Pipeline**:
-  - **AcoustID & MusicBrainz**: Authoritative MusicBrainz Identifiers (MBIDs: `MUSICBRAINZ_TRACKID`, `MUSICBRAINZ_ALBUMID`), artist credits, and ISRC (International Standard Recording Code).
-  - **Apple iTunes Search API**: Unauthenticated public search endpoint, retrieving cover artwork up to **3000x3000px** directly from Apple's CDN by rewriting image URL dimensions.
-  - **Deezer Public API**: Unauthenticated public endpoint providing track **BPM (tempo)** estimates, explicit advisory ratings, and ISRC validation.
-  - **Spotify Web API**: Enriched streaming metadata via Client Credentials flow.
-  - **Discogs Database API**: Extensive physical and niche release catalog with styles, compositions, label catalog numbers, and detailed credits.
-  - **Songlink / Odesli Resolver**: Cross-platform music link resolution (Spotify, Apple Music, Deezer, YouTube, Tidal) and streaming URL tag injection.
-- **Fuzzy Confidence Scoring**: Uses RapidFuzz token sorting and duration discrepancy penalties (`|Δduration| > 3s`) to mitigate false-positive tag injection.
-- **Interactive CLI**: Built with Typer and Rich, featuring formatted scan tables with audio format indicators, before/after inspection, dry-run simulation, and immediate post-write read-back verification.
+`flac-meta-injector` uses acoustic fingerprinting and a multi-provider waterfall pipeline. It writes tags and high-resolution cover artwork directly into audio headers without re-encoding audio streams.
 
 ---
 
-## Architecture & Resolution Waterfall
+## Key features
+
+- Multi-format metadata tagging. Writes FLAC Vorbis comments, Picture blocks, MP3 ID3v2.4 tags, and APIC frames using Mutagen. Audio streams are never re-encoded.
+- Multi-artist separation with compound band preservation. Separates collaborating artists split by commas, semicolons, slashes, or `feat.`, `ft.`, and `&` into individual `ARTIST` entries in FLAC and `TPE1` lists in MP3. Preserves compound band names such as Earth, Wind & Fire, Tyler, The Creator, AC/DC, and Simon & Garfunkel.
+- WAV to FLAC conversion. Encodes `.wav`, `.wave`, and `.aiff` files to FLAC using FFmpeg, with configurable compression levels and automatic post-conversion tagging.
+- Acoustic audio fingerprinting. Uses Chromaprint (`fpcalc`) and AcoustID to identify tracks from audio waveforms when existing tags or filenames are missing.
+- Multi-provider waterfall pipeline.
+  - AcoustID and MusicBrainz. Fetches MusicBrainz track and album identifiers, artist credits, and ISRC codes.
+  - Apple iTunes search API. Public endpoint that returns cover artwork up to 3000x3000px from the Apple CDN by rewriting image URL dimensions.
+  - Deezer public API. Public endpoint that provides track tempo (BPM) estimates, explicit ratings, and ISRC validation.
+  - Spotify web API. Retrieves metadata and audio attributes through the Client Credentials flow.
+  - Discogs database API. Physical release catalog containing styles, compositions, catalog numbers, and credits.
+  - Songlink and Odesli resolver. Resolves cross-platform links for Spotify, Apple Music, Deezer, YouTube, and Tidal.
+- Confidence scoring. Uses RapidFuzz token sorting and duration discrepancy penalties for tracks with duration differences greater than 3 seconds to prevent false matches.
+- Interactive CLI. Built with Typer and Rich. Includes scan tables, track inspection, dry-run previews, and post-write read-back verification.
+
+---
+
+## Architecture and resolution waterfall
 
 ```mermaid
 graph TD
@@ -86,53 +86,59 @@ graph TD
 
 ---
 
-## Prerequisites & System Dependencies
+## Prerequisites and system dependencies
 
-`flac-meta-injector` requires **Python 3.11+** and two external CLI binaries:
-1. **`ffmpeg`** (used for audio conversion and audio analysis)
-2. **`fpcalc`** (Chromaprint acoustic fingerprint generator)
+`flac-meta-injector` requires Python 3.11 or newer and two external command-line tools:
+1. `ffmpeg` for audio conversion and analysis.
+2. `fpcalc` for Chromaprint acoustic fingerprint generation.
 
-### Installing System Dependencies
+### Installing system dependencies
 
-#### Windows (via WinGet or Chocolatey)
+#### Windows
+
+Using WinGet:
 ```powershell
-# Using WinGet (Recommended)
 winget install Gyan.FFmpeg.Essentials
 winget install AcoustID.Chromaprint
+```
 
-# Or using Chocolatey
+Using Chocolatey:
+```powershell
 choco install ffmpeg chromaprint
 ```
 
-#### macOS (via Homebrew)
+#### macOS
+
+Using Homebrew:
 ```bash
 brew install ffmpeg chromaprint
 ```
 
-#### Linux (Debian / Ubuntu)
+#### Linux (Debian, Ubuntu)
+
 ```bash
 sudo apt-get update
 sudo apt-get install -y ffmpeg libchromaprint-tools
 ```
 
-### Desktop Application Dependencies (Optional, for GUI Development)
+### Desktop application dependencies
 
-If developing or building the native Windows desktop application:
-1. **Node.js** (v22+) and **npm** (or **pnpm**)
-2. **Rust** (1.78+) and **Cargo**
-3. **Microsoft C++ Build Tools** (Visual Studio MSVC) & **WebView2 Runtime** (pre-installed on Windows 11)
+To develop or build the native desktop application:
+1. Node.js 22 or newer with npm.
+2. Rust 1.78 or newer with Cargo.
+3. Microsoft C++ Build Tools and WebView2 Runtime on Windows.
 
 ---
 
 ## Installation
 
-1. **Clone the repository**:
+1. Clone the repository:
    ```bash
    git clone https://github.com/PeterMaks/flac-meta-injector.git
    cd flac-meta-injector
    ```
 
-2. **Create and activate a virtual environment**:
+2. Create and activate a virtual environment:
    ```bash
    # Windows PowerShell
    python -m venv .venv
@@ -143,43 +149,43 @@ If developing or building the native Windows desktop application:
    source .venv/bin/activate
    ```
 
-3. **Install dependencies in editable mode**:
+3. Install dependencies in editable mode:
    ```bash
    pip install -e ".[dev]"
    ```
 
 ---
 
-## Configuration (`.env`)
+## Configuration
 
-Copy `.env.example` to `.env` to customize operational settings or configure optional provider credentials:
+Copy `.env.example` to `.env` to configure settings or provider credentials:
 
 ```bash
 cp .env.example .env
 ```
 
-| Environment Variable | Default Value | Description |
+| Environment variable | Default value | Description |
 |---|---|---|
-| `ACOUSTID_API_KEY` | *(Built-in open key)* | Your AcoustID API key (register for free at [acoustid.org](https://acoustid.org/)). |
-| `SPOTIFY_CLIENT_ID` | `None` *(Optional)* | Spotify Developer Client ID for enhanced streaming metadata. |
-| `SPOTIFY_CLIENT_SECRET` | `None` *(Optional)* | Spotify Developer Client Secret. |
-| `DISCOGS_TOKEN` | `None` *(Optional)* | Discogs Personal Access Token (generate at [discogs.com/settings/developers](https://www.discogs.com/settings/developers)). |
-| `SONGLINK_API_KEY` | `None` *(Optional)* | Songlink / Odesli API key (or `ODESLI_API_KEY`) for authenticated streaming queries. |
-| `MUSICBRAINZ_USER_AGENT` | `flac-meta-injector/...` | User-Agent header compliant with MusicBrainz terms. |
-| `RATE_LIMIT_DELAY` | `1.0` | Minimum delay in seconds between calls to polite endpoints (MusicBrainz / Discogs). |
-| `REQUEST_TIMEOUT` | `15.0` | HTTP request timeout in seconds for provider endpoints. |
-| `COVER_ART_MIN_RESOLUTION` | `600` | Minimum acceptable cover art width/height in pixels. |
-| `CONFIDENCE_THRESHOLD` | `0.70` | Minimum composite confidence score (0.0 to 1.0) to auto-inject tags. |
-| `FFMPEG_PATH` | `ffmpeg` | Path or command name for the `ffmpeg` executable override. |
+| `ACOUSTID_API_KEY` | *(Built-in key)* | AcoustID API key from [acoustid.org](https://acoustid.org/). |
+| `SPOTIFY_CLIENT_ID` | None | Spotify Developer Client ID for streaming metadata. |
+| `SPOTIFY_CLIENT_SECRET` | None | Spotify Developer Client Secret. |
+| `DISCOGS_TOKEN` | None | Discogs Personal Access Token from [discogs.com/settings/developers](https://www.discogs.com/settings/developers). |
+| `SONGLINK_API_KEY` | None | Songlink or Odesli API key for authenticated streaming queries. |
+| `MUSICBRAINZ_USER_AGENT` | `flac-meta-injector/...` | User-Agent header for MusicBrainz API requests. |
+| `RATE_LIMIT_DELAY` | `1.0` | Minimum delay in seconds between calls to rate-limited endpoints. |
+| `REQUEST_TIMEOUT` | `15.0` | HTTP request timeout in seconds. |
+| `COVER_ART_MIN_RESOLUTION` | `600` | Minimum acceptable cover art width and height in pixels. |
+| `CONFIDENCE_THRESHOLD` | `0.70` | Minimum confidence score (0.0 to 1.0) required to inject tags. |
+| `FFMPEG_PATH` | `ffmpeg` | Path or command name for the `ffmpeg` executable. |
 | `FPCALC_PATH` | `fpcalc` | Path or command name for the `fpcalc` executable. |
 
-> **Note:** **Apple iTunes**, **Deezer**, and **Songlink / Odesli** operate without mandatory API keys or credentials. If Spotify, Discogs, or AcoustID keys are omitted, the tool automatically uses public endpoints and filename heuristics. Both `ffmpeg` and `fpcalc` default to system `PATH` binaries and can be overridden via `.env`.
+Apple iTunes, Deezer, and Songlink work without API keys. If Spotify, Discogs, or AcoustID keys are missing, the tool uses public endpoints and filename heuristics. Both `ffmpeg` and `fpcalc` default to binaries found on the system `PATH`.
 
 ---
 
-## CLI Usage & Command Reference
+## CLI usage and command reference
 
-The command-line interface is available via `flac-meta-injector` or `python -m flac_injector.cli`.
+Run the command-line interface with `flac-meta-injector` or `python -m flac_injector.cli`.
 
 ```text
 Usage: flac-meta-injector [OPTIONS] COMMAND [ARGS]...
@@ -195,27 +201,28 @@ Commands:
   match-spotify   Compare and match audio files against exported Spotify data (CSV or JSON).
   import-spotify  Alias for match-spotify: import Spotify export and fill metadata gaps.
   clean-art       Deduplicate embedded picture blocks, purge legacy picture tags, and clean loose folder images.
-  convert         Convert WAV / uncompressed audio files into FLAC and optionally inject tags.
+  convert         Convert WAV and uncompressed audio files into FLAC and inject tags.
+  serve           Launch the WebSocket JSON-RPC server for web frontend clients.
 ```
 
 ---
 
-### 1. `scan` — Audit Missing Tags & Cover Art (FLAC, MP3, WAV)
+### 1. scan: audit missing tags and cover art
 
-Scans a single audio file or an entire directory tree and renders a formatted table showing format, metadata health, missing core fields, and cover art resolution.
+Scans an audio file or directory and displays a table showing audio format, tag completeness, missing fields, and cover art dimensions.
 
 ```bash
 # Scan a folder recursively
 flac-meta-injector scan ./music/
 
-# Scan only the top-level directory (non-recursive)
+# Scan only the top-level directory
 flac-meta-injector scan ./music/ --no-recursive
 
 # Show only incomplete files missing tags or art
 flac-meta-injector scan ./music/ --only-incomplete
 ```
 
-**Example Output:**
+Example output:
 ```text
                           Audio Metadata Scan Results                          
 ┌─────────┬────────┬─────────┬─────────┬─────────┬─────────┬─────────┬────────┐
@@ -242,9 +249,9 @@ flac-meta-injector scan ./music/ --only-incomplete
 
 ---
 
-### 2. `inspect` — Detailed Tag & Picture Block Viewer
+### 2. inspect: tag and cover art details
 
-Performs deep introspection of a FLAC, MP3, or WAV file, displaying audio stream properties, all existing Vorbis comments / ID3 frames, and embedded cover art specifications.
+Reads a FLAC, MP3, or WAV file and prints stream properties, existing Vorbis comments, ID3 frames, and embedded cover art details.
 
 ```bash
 # Inspect a FLAC file
@@ -257,7 +264,7 @@ flac-meta-injector inspect ./music/track.mp3
 flac-meta-injector inspect ./music/recording.wav
 ```
 
-**Example Output (MP3 with ID3v2.4 and APIC Cover Art):**
+Example output for an MP3 file:
 ```text
 ┌────────────────────────── Audio Stream Properties ──────────────────────────┐
 │ Path: ./music/Daft Punk - Technologic.mp3                                   │
@@ -291,140 +298,139 @@ flac-meta-injector inspect ./music/recording.wav
 
 ---
 
-### 3. `inject` — Resolve & Inject Metadata into FLAC and MP3
+### 3. inject: resolve and write tags and artwork
 
-Executes the waterfall pipeline to resolve and write canonical metadata and high-res cover art.
+Runs the waterfall pipeline to identify tracks and write metadata and cover art.
 
 ```bash
-# 1. Preview changes safely without modifying files (Dry-Run mode)
+# Preview changes without modifying files
 flac-meta-injector inject ./music/ --dry-run
 
-# 2. Inject missing metadata and cover art into a single FLAC or MP3
+# Inject missing metadata into a single file
 flac-meta-injector inject ./music/track.mp3
 
-# 3. Inject across a folder with a custom confidence threshold (0.0 to 1.0)
+# Inject files in a folder with a confidence threshold
 flac-meta-injector inject ./music/ --threshold 0.75
 
-# 4. Force-overwrite existing tags with fresh canonical metadata
+# Overwrite existing tags with database values
 flac-meta-injector inject ./music/ --overwrite
 
-# 5. Disable auto-converting WAV files when processing mixed folders
+# Skip converting WAV files when processing a folder
 flac-meta-injector inject ./music/ --no-convert-wav
 
-# 6. Inject metadata directly from a streaming link (Spotify, Apple Music, Deezer, YouTube)
+# Inject metadata directly from a streaming URL
 flac-meta-injector inject ./music/track.flac --song-link "https://song.link/s/4cOdK2wGLETKBW3PvgPWqT"
 ```
 
-**CLI Flags for `inject`:**
-- `--dry-run`: Simulates provider resolution and prints what tags and artwork would be written without altering disk files.
-- `--threshold, -t FLOAT`: Minimum confidence score (default `0.70`) required to execute injection.
-- `--overwrite`: Overwrites existing non-empty tags (default: `False`, preserving existing non-empty tags).
-- `--overwrite-art`: Force re-resolves and replaces album art even if text metadata is already complete.
-- `--overwrite-unknown`: Selectively overwrites only tracks whose album tag is `"Unknown Album"` or missing.
-- `--overwrite-album <name>`: Selectively overwrites tracks matching a specific album tag (e.g. `--overwrite-album "Unknown Album"`).
-- `--song-link, --url <url>`: Direct song.link or streaming platform link (Spotify, Apple Music, Deezer, YouTube) to resolve metadata and cover art directly.
-- `--convert-wav / --no-convert-wav`: Auto-converts any discovered WAV files to FLAC and injects tags into the resulting FLAC (default: `True`).
+Options for `inject`:
+- `--dry-run`: Shows proposed tags and artwork without writing to disk.
+- `--threshold, -t FLOAT`: Minimum confidence score (default: `0.70`).
+- `--overwrite`: Overwrites existing non-empty tags (default: `False`).
+- `--overwrite-art`: Replaces album art even if metadata is complete.
+- `--overwrite-unknown`: Overwrites only tracks where the album tag is empty or `"Unknown Album"`.
+- `--overwrite-album <name>`: Overwrites tracks matching a specific album name.
+- `--song-link, --url <url>`: Direct streaming link to resolve metadata.
+- `--convert-wav / --no-convert-wav`: Converts discovered WAV files to FLAC and tags the resulting FLAC (default: `True`).
 - `--recursive / --no-recursive, -r`: Recurse into subdirectories (default: `True`).
 
-> **Hardware Player & DAP Compatibility:** Embedded cover artwork up to 3000x3000px can exceed 2MB. Certain legacy digital audio players (DAPs) or automotive head units with strict memory ceilings may experience playback delays or failure. If targeting memory-constrained hardware, manage image resolution via external optimization tools or folder-level artwork.
+Embedded cover art up to 3000x3000px can exceed 2 MB. Some legacy digital audio players or car head units have strict memory limits and may fail on large pictures.
 
 ---
 
-### 4. `match-spotify` (alias: `import-spotify`) — Match & Fill Metadata from Spotify Export (CSV / JSON)
+### 4. match-spotify: match and populate tags from a Spotify export
 
-Imports manual or exported Spotify playlist/library data (from Exportify, Spotlistr, Soundiiz, TuneMyMusic, or raw Spotify Web API JSON) and automatically compares, similarity-matches, and fills metadata gaps in your local audio files (FLAC, MP3, WAV).
+Matches audio files against exported Spotify playlist data in CSV, TSV, or JSON format.
 
-**Key Matching Behavior:**
-- **Similarity Threshold Filter**: Only audio files matching Spotify tracks above the similarity threshold (`--threshold`, default `0.70`) have their metadata updated. Files below threshold are skipped.
-- **Dual-Source Matching (Tags & Filename)**: Compares Spotify tracks against both embedded audio tags and parsed filenames (e.g. `Artist - Title.flac`), allowing identification when internal tags are missing or invalid.
-- **Automatic Mismatched Tag Overwrite**: When a file matches a Spotify track via filename but internal tags diverge (< 70% similarity), those mismatched core tags (Artist, Title, Album) are selectively updated with verified Spotify metadata without requiring full `--overwrite`.
-- **Metadata Gap Filling**: Existing non-empty tags are preserved while missing tags are populated (Album, Release Date, Genres, Record Label, BPM, Explicit flag, ISRC, Spotify Track ID, and audio features).
-- **Full Overwrite Support**: Pass `--overwrite` to replace all existing non-empty tags with values from the Spotify dataset.
-- **Multi-Format Ingestion**: Supports `.csv`, `.tsv`, and `.json` exports with automatic column detection (supporting headers: `Track Name`, `Artist Name(s)`, `Album Name`, `Spotify Track ID`, `ISRC`).
+Matching rules:
+- Similarity threshold. Only tracks with a match score at or above `--threshold` (default: `0.70`) receive updates.
+- Dual-source matching. Matches against embedded tags and parsed filenames.
+- Mismatched tag overwrite. If a file matches by filename but embedded tags differ, core tags update with verified Spotify values.
+- Gap filling. Preserves existing non-empty tags and populates missing fields.
+- Full overwrite. Use `--overwrite` to replace all existing tags.
 
 ```bash
-# 1. Preview similarity matching and proposed tag updates safely (Dry-Run mode)
+# Preview matching results without modifying files
 flac-meta-injector match-spotify ./music/ ./spotify_playlist.csv --dry-run
 
-# 2. Match and fill metadata gaps in local files from a Spotify CSV export
+# Populate missing tags from a Spotify CSV export
 flac-meta-injector match-spotify ./music/ ./spotify_playlist.csv
 
-# 3. Match from a JSON export with custom similarity threshold (e.g. 75%)
+# Match from a JSON export with a custom threshold
 flac-meta-injector match-spotify ./music/ ./spotify_tracks.json --threshold 0.75
 
-# 4. Overwrite existing tags with Spotify export data on matched songs
+# Replace existing tags with export data
 flac-meta-injector match-spotify ./music/ ./spotify_playlist.csv --overwrite
 
-# 5. Using the import-spotify alias with --data flag
+# Use the import-spotify alias with the data option
 flac-meta-injector import-spotify ./music/ --data ./spotify_playlist.csv
 ```
 
-**CLI Flags for `match-spotify` / `import-spotify`:**
+Options for `match-spotify`:
 - `target`: Path to audio file or directory.
 - `data_file`: Path to Spotify CSV or JSON file (also available via `--data, -d`).
-- `--threshold, -t FLOAT`: Minimum similarity score required to match (default: `0.70`).
-- `--dry-run`: Preview matches, similarity scores, and proposed tag updates without modifying disk files.
-- `--overwrite`: Overwrites existing non-empty tags instead of only filling missing gaps (default: `False`).
-- `--overwrite-mismatched / --no-overwrite-mismatched`: Overwrites discordant artist/title/album tags when matched via filename (default: `True`).
-- `--overwrite-art`: Replaces embedded cover art if available from matched Spotify records.
-- `--fetch-art`: Resolves and downloads master album art from providers for matched tracks (default: `False`).
-- `--convert-wav / --no-convert-wav`: Auto-converts WAV files to FLAC before matching (default: `True`).
+- `--threshold, -t FLOAT`: Minimum similarity score to accept a match (default: `0.70`).
+- `--dry-run`: Preview matches without writing files.
+- `--overwrite`: Overwrites existing tags instead of filling gaps (default: `False`).
+- `--overwrite-mismatched / --no-overwrite-mismatched`: Overwrites mismatched tags when matched by filename (default: `True`).
+- `--overwrite-art`: Replaces embedded art from matched Spotify records.
+- `--fetch-art`: Downloads cover art from providers for matched tracks (default: `False`).
+- `--convert-wav / --no-convert-wav`: Converts WAV files to FLAC before matching (default: `True`).
 - `--recursive / --no-recursive, -r`: Recurse into subdirectories (default: `True`).
 
 ---
 
-### 5. `convert` — Convert WAV / Audio to FLAC with Auto-Injection
+### 5. convert: WAV to FLAC conversion
 
-Losslessly encodes uncompressed audio files (`.wav`, `.wave`, `.aiff`, `.aif`) to FLAC using FFmpeg, and automatically resolves and injects metadata into the resulting tracks.
+Encodes uncompressed audio files (`.wav`, `.wave`, `.aiff`, `.aif`) to FLAC using FFmpeg, and tags the converted files.
 
 ```bash
-# 1. Convert a WAV file to FLAC and auto-inject metadata and cover art
+# Convert a WAV file to FLAC and inject tags
 flac-meta-injector convert ./music/recording.wav
 
-# 2. Convert an entire folder of WAV files into a dedicated FLAC directory
+# Convert WAV files to a separate output directory
 flac-meta-injector convert ./uncompressed_wavs/ --output-dir ./flac_library/
 
-# 3. Convert and delete source WAV files only after verified conversion
+# Convert and delete source WAV files after verified conversion
 flac-meta-injector convert ./music/ --delete-original
 
-# 4. Convert without injecting metadata (pure audio conversion)
+# Convert without injecting metadata
 flac-meta-injector convert ./music/ --no-inject
 
-# 5. Customize FLAC compression level (0-12, default 8)
+# Set FLAC compression level (0 to 12, default 8)
 flac-meta-injector convert ./music/ --compression-level 8
 ```
 
-**CLI Flags for `convert`:**
-- `--output-dir, -o PATH`: Optional destination folder for converted FLAC files.
-- `--inject / --no-inject`: Automatically resolve and inject metadata after conversion (default: `True`).
-- `--delete-original`: Deletes the source WAV file only after verified FLAC encoding and valid stream verification (default: `False`).
-- `--compression-level, -c INT`: FLAC compression level (0–12, default: `8`).
-- `--threshold, -t FLOAT`: Minimum confidence threshold for auto-injection (default: `0.70`).
+Options for `convert`:
+- `--output-dir, -o PATH`: Output folder for converted FLAC files.
+- `--inject / --no-inject`: Inject metadata after conversion (default: `True`).
+- `--delete-original`: Deletes source files only after verifying the converted FLAC (default: `False`).
+- `--compression-level, -c INT`: FLAC compression level from 0 to 12 (default: `8`).
+- `--threshold, -t FLOAT`: Minimum confidence score for auto-injection (default: `0.70`).
 - `--recursive / --no-recursive, -r`: Recurse into subdirectories (default: `True`).
-- `--dry-run`: Preview conversion paths without modifying files.
+- `--dry-run`: Preview conversion without modifying files.
 
 ---
 
-### 6. `clean-art` — Deduplicate & Purge Repeating Album Art
+### 6. clean-art: deduplicate and clean embedded picture blocks
 
-Deduplicates multiple embedded Picture blocks (e.g., duplicate Type 0 "Other" and Type 3 "Front Cover" blocks), purges legacy Vorbis comment picture tags (`METADATA_BLOCK_PICTURE`, `COVERART`), and optionally removes loose image files (`folder.jpg`, `cover.jpg`) that override embedded artwork in file managers and media players.
+Removes duplicate embedded picture blocks, removes legacy picture tags (`METADATA_BLOCK_PICTURE`, `COVERART`), and optionally deletes loose folder image files (`folder.jpg`, `cover.jpg`).
 
 ```bash
-# 1. Preview deduplication across files without modifying them
+# Preview changes without modifying files
 flac-meta-injector clean-art ./music/ --dry-run
 
-# 2. Clean duplicate embedded picture blocks in a library
+# Deduplicate picture blocks across a library
 flac-meta-injector clean-art ./music/
 
-# 3. Clean embedded art and remove loose folder.jpg/cover.jpg files
+# Deduplicate picture blocks and remove loose image files
 flac-meta-injector clean-art ./music/ --remove-folder-art
 ```
 
 ---
 
-### 7. `fingerprint` — Acoustic Fingerprint & Heuristic Parser
+### 7. fingerprint: acoustic fingerprint and filename parser
 
-Runs `fpcalc` against an audio file, prints its Chromaprint representation, and parses candidate hints from filenames and directory hierarchies.
+Runs `fpcalc` against an audio file, outputs the Chromaprint fingerprint, and parses metadata hints from the filename.
 
 ```bash
 flac-meta-injector fingerprint ./music/"01 - Daft Punk - One More Time.mp3"
@@ -432,9 +438,19 @@ flac-meta-injector fingerprint ./music/"01 - Daft Punk - One More Time.mp3"
 
 ---
 
-## Python Library Quickstart
+### 8. serve: WebSocket backend server
 
-`flac-meta-injector` can also be used programmatically in Python applications:
+Starts the WebSocket JSON-RPC server on port 8765 to handle browser requests.
+
+```bash
+flac-meta-injector serve --host 127.0.0.1 --port 8765
+```
+
+---
+
+## Python library quickstart
+
+Use `flac-meta-injector` directly in Python:
 
 ```python
 import asyncio
@@ -467,58 +483,58 @@ if __name__ == "__main__":
 
 ---
 
-## Standard Tag Mapping Across Formats
+## Standard tag mapping across formats
 
-`flac-meta-injector` automatically maps canonical metadata across both **FLAC Vorbis Comments** and **MP3 ID3v2.4 frames**:
+`flac-meta-injector` maps metadata across FLAC Vorbis comments and MP3 ID3v2.4 frames:
 
-| Canonical Field | FLAC Vorbis Tag | MP3 ID3v2.4 Frame | Example Value |
+| Field | FLAC Vorbis tag | MP3 ID3v2.4 frame | Example value |
 |---|---|---|---|
-| Track Title | `TITLE` | `TIT2` | `One More Time` |
-| Lead Artist | `ARTIST` | `TPE1` | `Daft Punk` |
-| Album Name | `ALBUM` | `TALB` | `Discovery` |
-| Album Artist | `ALBUMARTIST` | `TPE2` | `Daft Punk` |
-| Track Number / Total | `TRACKNUMBER`, `TRACKTOTAL` | `TRCK` (`num/total`) | `1/14` |
-| Disc Number / Total | `DISCNUMBER`, `DISCTOTAL` | `TPOS` (`num/total`) | `1/1` |
-| Release Date | `DATE`, `YEAR` | `TDRC` | `2001-03-12` |
-| Genre(s) | `GENRE` | `TCON` | `Electronic` |
-| ISRC Code | `ISRC` | `TSRC` | `GBDUW0100055` |
+| Track title | `TITLE` | `TIT2` | `One More Time` |
+| Lead artist | `ARTIST` | `TPE1` | `Daft Punk` |
+| Album name | `ALBUM` | `TALB` | `Discovery` |
+| Album artist | `ALBUMARTIST` | `TPE2` | `Daft Punk` |
+| Track number / total | `TRACKNUMBER`, `TRACKTOTAL` | `TRCK` (`num/total`) | `1/14` |
+| Disc number / total | `DISCNUMBER`, `DISCTOTAL` | `TPOS` (`num/total`) | `1/1` |
+| Release date | `DATE`, `YEAR` | `TDRC` | `2001-03-12` |
+| Genre | `GENRE` | `TCON` | `Electronic` |
+| ISRC code | `ISRC` | `TSRC` | `GBDUW0100055` |
 | Tempo (BPM) | `BPM` | `TBPM` | `123.0` |
-| Advisory | `ITUNESADVISORY` | `TXXX:ITUNESADVISORY` | `1` (Explicit) / `2` (Clean) |
-| MusicBrainz Recording ID | `MUSICBRAINZ_TRACKID` | `TXXX:MusicBrainz Track Id` | `fad84787-...` |
-| MusicBrainz Album ID | `MUSICBRAINZ_ALBUMID` | `TXXX:MusicBrainz Album Id` | `aca0f087-...` |
-| MusicBrainz Artist ID | `MUSICBRAINZ_ARTISTID` | `TXXX:MusicBrainz Artist Id` | `a10d33c3-...` |
-| AcoustID Identifier | `ACOUSTID_ID` | `TXXX:Acoustid Id` | `83907c08-...` |
+| Advisory | `ITUNESADVISORY` | `TXXX:ITUNESADVISORY` | `1` (Explicit), `2` (Clean) |
+| MusicBrainz recording ID | `MUSICBRAINZ_TRACKID` | `TXXX:MusicBrainz Track Id` | `fad84787-...` |
+| MusicBrainz album ID | `MUSICBRAINZ_ALBUMID` | `TXXX:MusicBrainz Album Id` | `aca0f087-...` |
+| MusicBrainz artist ID | `MUSICBRAINZ_ARTISTID` | `TXXX:MusicBrainz Artist Id` | `a10d33c3-...` |
+| AcoustID identifier | `ACOUSTID_ID` | `TXXX:Acoustid Id` | `83907c08-...` |
 | Barcode / UPC | `BARCODE` | `TXXX:BARCODE` | `075678665715` |
-| Record Label | `ORGANIZATION`, `LABEL` | `TPUB` | `Daft Life Ltd.` |
+| Record label | `ORGANIZATION`, `LABEL` | `TPUB` | `Daft Life Ltd.` |
 | Copyright | `COPYRIGHT` | `TCOP` | `2001 Daft Life Ltd.` |
 | Composer | `COMPOSER` | `TCOM` | `Thomas Bangalter, Guy-Manuel de Homem-Christo` |
-| Cover Artwork | `Picture Block (Type 3)` | `APIC (Type 3: Front)` | Up to **3000x3000px** (JPEG/PNG) |
+| Cover artwork | Picture Block (Type 3) | APIC (Type 3: Front) | Up to 3000x3000px (JPEG, PNG) |
 
-> **Note on ID3v2.4 Tagging:** MP3 tags are written using standard ID3v2.4 with UTF-8 encoding to preserve multi-artist delimiters (`TPE1`) and ISO timestamps (`TDRC`). For legacy car head units or hardware players that only support ID3v2.3, tags can be read using standard media server compatibility layers.
+MP3 tags use ID3v2.4 with UTF-8 encoding to preserve multi-artist delimiters (`TPE1`) and ISO timestamps (`TDRC`).
 
 ---
 
-## Native Windows Desktop Application (Tauri v2 + React 19)
+## Native Windows desktop application
 
-`flac-meta-injector` features a native, frameless **Windows 11 Desktop Application** built with **Tauri v2 (Rust + WebView2)** and **React 19 + TypeScript + Tailwind CSS**.
+`flac-meta-injector` includes a desktop application built with Tauri v2 (Rust and WebView2) and React 19.
 
 <p align="center">
-  <img src="images/Lib.png" alt="Desktop Library Scanner with Populated Fields" width="100%" />
+  <img src="images/Lib.png" alt="Desktop library scanner" width="100%" />
 </p>
 
-### Desktop Feature Gallery
+### Desktop feature gallery
 
-| **Waterfall Injector** | **Track Inspector** |
+| Waterfall injector | Track inspector |
 |:---:|:---:|
-| <img src="images/Injector.png" alt="Waterfall Injector" width="100%"/> | <img src="images/Inspector.png" alt="Track Inspector" width="100%"/> |
-| *6-provider resolution waterfall with confidence scoring and batch execution.* | *Vorbis comments, ID3v2.4 frames, and Chromaprint acoustic fingerprint inspection.* |
+| <img src="images/Injector.png" alt="Waterfall injector" width="100%"/> | <img src="images/Inspector.png" alt="Track inspector" width="100%"/> |
+| Resolution across providers with confidence scoring. | Vorbis comments, ID3v2.4 frames, and Chromaprint fingerprint display. |
 
-| **WAV to FLAC Converter** | **Settings & API Configuration** |
+| WAV to FLAC converter | Settings and API configuration |
 |:---:|:---:|
-| <img src="images/Converter.png" alt="WAV to FLAC Converter" width="100%"/> | <img src="images/Settings.png" alt="Settings & API Configuration" width="100%"/> |
-| *Lossless FFmpeg conversion with compression levels (0–12) and auto-tagging.* | *Acoustic API keys, streaming provider credentials, and network parameter tuning.* |
+| <img src="images/Converter.png" alt="WAV to FLAC converter" width="100%"/> | <img src="images/Settings.png" alt="Settings configuration" width="100%"/> |
+| Lossless FFmpeg conversion with compression levels from 0 to 12. | API keys and network parameters. |
 
-### Desktop IPC Architecture
+### Desktop IPC architecture
 
 ```mermaid
 graph TD
@@ -542,55 +558,56 @@ graph TD
     IPC <-->|"Line-delimited JSON-RPC"| Bridge
 ```
 
-> **Python Runtime Discovery:** In local development, the Tauri Rust core spawns the Python bridge process using `python` from the system `PATH` (or your active `.venv` environment). For standalone release installers, the Python bridge and external binaries (`ffmpeg`, `fpcalc`) can be bundled as frozen PyInstaller sidecars.
+During local development, the Tauri core runs the Python bridge using the Python binary on the system `PATH` or in your `.venv`. In release installers, the bridge and external tools bundle as frozen PyInstaller sidecars.
 
-### Key Desktop Features
+### Key desktop features
 
-- **Native OS Drag-and-Drop**: Drop files or folders directly from Windows Explorer into the UI.
-- **Live 6-Node Waterfall Stepper**: Real-time visual progress as tracks move through `Chromaprint` -> `MusicBrainz` -> `iTunes` -> `Deezer` -> `Spotify` -> `Songlink`.
-- **Track Inspector & Artwork Viewer**: Inspect Vorbis comments, ID3 frames, and preview high-resolution cover artwork.
-- **WAV to FLAC Converter**: Convert uncompressed files with compression level sliders (0–12) and automatic post-conversion tagging.
-- **In-App `.env` Settings**: Manage API keys, timeouts, and rate limits directly from the desktop interface.
+- Native file drag and drop. Drop files or folders from Explorer into the window.
+- Visual waterfall progress. Shows step-by-step progress across Chromaprint, MusicBrainz, iTunes, Deezer, Spotify, and Songlink.
+- Track inspector. Displays Vorbis comments, ID3 frames, and high-resolution cover artwork.
+- WAV to FLAC converter. Compression level slider from 0 to 12 with automatic post-conversion tagging.
+- In-app settings editor. Configure API keys, timeouts, and rate limits.
 
-### Running & Building the Desktop App
+### Running and building the desktop app
 
 ```bash
-# 1. Enter the desktop directory and install dependencies
+# Install dependencies
 cd desktop
 npm install
 
-# 2. Run the development desktop application
+# Run the development desktop application
 npm run tauri dev
 
-# 3. Build standalone production Windows binaries (.msi and .exe installer)
+# Build the standalone Windows installer
 npm run tauri build
 ```
 
 ---
 
-## Verification & Testing
+## Verification and testing
 
-The repository includes a comprehensive test suite covering FLAC, MP3, WAV, and Python JSON bridge workflows with synthetic audio fixtures generated via `ffmpeg`:
+The test suite covers FLAC, MP3, WAV, and Python JSON bridge workflows using audio fixtures generated with `ffmpeg`:
 
 ```bash
-# Run the complete test suite
+# Run all tests
 pytest -v
 
 # Run targeted test suites
-pytest tests/test_bridge.py -v         # Tauri NDJSON bridge tests
-pytest tests/test_converter.py -v      # WAV to FLAC conversion tests
-pytest tests/test_mp3.py -v            # MP3 ID3 & APIC injection tests
-pytest tests/test_scanner.py -v        # Multi-format scanner tests
-pytest tests/test_merger.py -v         # Waterfall and fuzzy match tests
-pytest tests/test_providers.py -v      # Async API provider tests
-pytest tests/test_writer.py -v         # Mutagen writer verification tests
-pytest tests/test_spotify_import.py -v # Spotify CSV/JSON import & similarity tests
-pytest tests/test_cli.py -v            # CLI entrypoint and option tests
+pytest tests/test_bridge.py -v
+pytest tests/test_converter.py -v
+pytest tests/test_mp3.py -v
+pytest tests/test_scanner.py -v
+pytest tests/test_merger.py -v
+pytest tests/test_providers.py -v
+pytest tests/test_writer.py -v
+pytest tests/test_spotify_import.py -v
+pytest tests/test_cli.py -v
+pytest tests/test_server.py -v
 
-# Run code quality and linting checks
+# Run linter
 ruff check src tests
 
-# Verify Desktop TypeScript frontend & Rust backend
+# Verify desktop frontend and Rust core
 cd desktop
 npm run build
 cd src-tauri
@@ -601,5 +618,4 @@ cargo check
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
-
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
